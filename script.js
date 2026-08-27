@@ -1,3 +1,10 @@
+alert("Script chal rahi hai!"); // Ye check karne ke liye ki JS run ho rahi hai ya nahi
+
+const SUPABASE_URL = 'https://mgrvkfcpuxubhzmylewv.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_7BjPkCUaH1EgtAdNWs7gSA_7dBN-98n';
+
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// ... baaki poora code waisa hi rehne do
 const SUPABASE_URL = 'https://mgrvkfcpuxubhzmylewv.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_7BjPkCUaH1EgtAdNWs7gSA_7dBN-98n';
 
