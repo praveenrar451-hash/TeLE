@@ -16,21 +16,31 @@ const userEmailDisplay = document.getElementById('user-email-display');
 
 let currentUser = null;
 
-// Login / Signup Handler
+// Login / Signup Handler with Error Alerts for Tablet debugging
 loginBtn.addEventListener('click', async () => {
     const email = emailInput.value.trim();
     const password = passwordInput.value.trim();
 
     if (!email || !password) return alert('Please enter email and password');
 
+    // Pehle Sign In try karo
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    
     if (error) {
-        // Agar account nahi hai toh sign up kar lo
+        // Agar login fail ho, toh error message screen par dikhao
+        alert("Login Error: " + error.message);
+        
+        // Phir Sign Up try karo agar account nahi hai
         const { data: signUpData, error: signUpError } = await supabase.auth.signUp({ email, password });
-        if (signUpError) return alert(signUpError.message);
-        alert('Account created & logged in successfully!');
+        if (signUpError) {
+            alert("Sign Up Error: " + signUpError.message);
+            return;
+        } else {
+            alert('Account created successfully! Now click login again.');
+        }
+    } else {
+        checkUser();
     }
-    checkUser();
 });
 
 // Logout Handler
@@ -61,7 +71,7 @@ sendBtn.addEventListener('click', async () => {
         { content: text, sender_email: currentUser.email }
     ]);
 
-    if (error) alert(error.message);
+    if (error) alert("Send Error: " + error.message);
     else messageInput.value = '';
 });
 
@@ -72,7 +82,7 @@ async function loadMessages() {
         .select('*')
         .order('created_at', { ascending: true });
 
-    if (error) return console.error(error);
+    if (error) return alert("Load Error: " + error.message);
 
     messagesBox.innerHTML = '';
     if (data) {
