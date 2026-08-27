@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Realtime Chat App</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Supabase CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+    <!-- Login Screen -->
+    <div id="login-container" class="card">
+        <h2>Welcome to Chat</h2>
+        <input type="email" id="email" placeholder="Enter your email">
+        <input type="password" id="password" placeholder="Enter password">
+        <button id="login-btn">Login / Sign Up</button>
+    </div>
+
+    <!-- Chat Screen -->
+    <div id="chat-container" class="card hidden">
+        <div class="chat-header">
+            <h3>Group Chat</h3>
+            <span id="user-email-display"></span>
+            <button id="logout-btn">Logout</button>
+        </div>
+        <div id="messages-box"></div>
+        <div class="chat-input-area">
+            <input type="text" id="message-input" placeholder="Type a message...">
+            <button id="send-btn">Send</button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
