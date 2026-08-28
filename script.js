@@ -42,19 +42,11 @@ window.addEventListener('DOMContentLoaded', () => {
         return;
     }
 
-    if (supabaseClient) {
-        const { data } = await supabaseClient.from('users').select('*').eq('username', usernameInput);
-        if (!data || data.length === 0) {
-            await supabaseClient.from('users').insert([{ username: usernameInput, bio: 'Digital Creator', avatar_url: '', is_online: true }]);
-        } else {
-            await supabaseClient.from('users').update({ is_online: true }).eq('username', usernameInput);
-        }
-    }
-
-    saveAccountToList(usernameInput);
+    // Save locally immediately so UI doesn't block
     localStorage.setItem('currentUsername', usernameInput);
-    
-    // Force hide login container and show main app
+    saveAccountToList(usernameInput);
+
+    // Force hide login, show app
     const authEl = document.getElementById('auth-container');
     if (authEl) {
         authEl.classList.remove('active');
@@ -69,6 +61,20 @@ window.addEventListener('DOMContentLoaded', () => {
     switchView('insta-feed-container');
     loadUserData(usernameInput);
     loadFeedPosts();
+
+    // Background sync with Supabase without blocking UI
+    if (supabaseClient) {
+        try {
+            const { data } = await supabaseClient.from('users').select('*').eq('username', usernameInput);
+            if (!data || data.length === 0) {
+                await supabaseClient.from('users').insert([{ username: usernameInput, bio: 'Digital Creator', avatar_url: '', is_online: true }]);
+            } else {
+                await supabaseClient.from('users').update({ is_online: true }).eq('username', usernameInput);
+            }
+        } catch (err) {
+            console.log("Supabase sync background error:", err);
+        }
+    }
  }
 
 async function updateUserOnlineStatus(username, status) {
