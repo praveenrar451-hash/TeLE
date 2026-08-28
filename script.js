@@ -35,10 +35,10 @@ window.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-async function handleAuthLogin() {
+ async function handleAuthLogin() {
     const usernameInput = document.getElementById('auth-username').value.trim();
     if (!usernameInput) {
-        alert("Enter username");
+        alert("Please enter a username");
         return;
     }
 
@@ -53,12 +53,23 @@ async function handleAuthLogin() {
 
     saveAccountToList(usernameInput);
     localStorage.setItem('currentUsername', usernameInput);
-    document.getElementById('auth-container').classList.remove('active');
-    document.getElementById('main-app-content').style.display = 'flex';
+    
+    // Force hide login container and show main app
+    const authEl = document.getElementById('auth-container');
+    if (authEl) {
+        authEl.classList.remove('active');
+        authEl.style.display = 'none';
+    }
+    
+    const mainApp = document.getElementById('main-app-content');
+    if (mainApp) {
+        mainApp.style.display = 'flex';
+    }
+
     switchView('insta-feed-container');
     loadUserData(usernameInput);
     loadFeedPosts();
-}
+ }
 
 async function updateUserOnlineStatus(username, status) {
     if (!supabaseClient || !username) return;
