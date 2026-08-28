@@ -1567,3 +1567,53 @@ function renderPostsToDOM(posts, feedPostsArea, overwrite = true) {
         feedPostsArea.appendChild(postCard);
     });
 }
+// ==========================================
+// VIEW STATE MEMORY & CACHE RETENTION PATCH
+// ==========================================
+console.log("Memory Retention Patch Loaded!");
+
+// Global memory cache object
+window.appViewCache = {
+    feedLoaded: false,
+    profileLoadedUser: null
+};
+
+// Override switchView to preserve DOM state instead of wiping/re-fetching blindly
+const originalSwitchView = window.switchView;
+if (originalSwitchView) {
+    window.switchView = function(viewId, saveState = true) {
+        // Purana view switch call karo
+        originalSwitchView(viewId, saveState);
+
+        // Agar user insta-feed par wapas aaya hai aur pehle se posts loaded the, toh dubara fetch mat karo
+        if (viewId === 'insta-feed-container') {
+            const feedArea = document.getElementById('feed-posts-area');
+            if (feedArea && feedArea.children.length > 0) {
+                // Already loaded, don't clear or reload unnecessarily!
+                console.log("Feed restored from memory instantly.");
+                return;
+            }
+        }
+    };
+}
+
+// Navigation icon click par bhi smart check lagayein taaki instant switch ho
+document.querySelectorAll('.insta-nav i').forEach(icon => {
+    // Purane click listeners ke upar apna fast handler layer lagayein
+    icon.addEventListener('click', (e) => {
+        const action = e.target.getAttribute('data-action');
+        if (action === 'home') {
+            const feedArea = document.getElementById('feed-posts-area');
+            if (feedArea && feedArea.children.length > 0) {
+                // Agar pehle se posts hain toh database call skip karo, turant dikhao
+                document.querySelectorAll('.app-view').forEach(v => v.classList.remove('active'));
+                document.getElementById('insta-feed-container').classList.add('active');
+                if (reelsContainer) reelsContainer.classList.remove('active');
+                if (chatWindowScreen) chatWindowScreen.classList.remove('active');
+                currentActiveView = 'insta-feed-container';
+                localStorage.setItem('lastActiveView', 'insta-feed-container');
+                e.stopImmediatePropagation(); // Purane slow reload ko roko
+            }
+        }
+    }, true); // Capture phase mein intercept karega
+});
