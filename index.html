@@ -2,109 +2,44 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>InstaTele</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Supabase Library -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
     <div id="app-wrapper">
-        <!-- ================= LOGIN VIEW ================= -->
-        <div id="login-view" class="app-view active">
-            <div class="login-main-card">
-                <h1 class="insta-logo">InstaTele</h1>
-                <div class="login-form">
-                    <input type="text" id="login-username" placeholder="Phone number, username, or email">
-                    <input type="password" id="login-password" placeholder="Password">
-                    <button id="login-btn">Log In</button>
-                    
-                    <div class="or-divider">
-                        <div class="line"></div>
-                        <div class="or-text">OR</div>
-                        <div class="line"></div>
-                    </div>
-                    
-                    <button class="fb-login-btn"><i class="fa-brands fa-square-facebook"></i> Log in with Facebook</button>
-                    <p id="login-error" class="error-msg"></p>
-                </div>
-            </div>
-            <div class="signup-footer-card">
-                <p>Don't have an account? <a href="#">Sign up</a></p>
+        <!-- 1. LOGIN PAGE -->
+        <div id="view-login" class="app-view active">
+            <div class="login-card">
+                <h1 class="logo">InstaTele</h1>
+                <input type="text" id="inp-user" placeholder="Username">
+                <input type="password" id="inp-pass" placeholder="Password">
+                <button id="btn-login">Log In</button>
+                <p id="msg-error" style="color:red; font-size:12px; margin-top:10px;"></p>
             </div>
         </div>
 
-        <!-- ================= HOME VIEW (Insta Feed) ================= -->
-        <div id="home-view" class="app-view">
-            <header class="app-header">
-                <h2 class="insta-logo-small">InstaTele</h2>
-                <div class="header-btns">
-                    <button id="switch-to-tele" class="header-icon">♾️</button>
-                    <button id="logout-btn" class="header-icon"><i class="fa-solid fa-right-from-bracket"></i></button>
-                </div>
+        <!-- 2. HOME PAGE (Feed) -->
+        <div id="view-home" class="app-view">
+            <header class="header">
+                <h2 class="logo-small">InstaTele</h2>
+                <button id="btn-logout">Logout</button>
             </header>
-            <main class="content-scroll">
-                <div id="stories-bar"></div>
-                <div id="main-feed"></div>
+            <main id="feed-container">
+                <p style="padding:20px; text-align:center; color:gray;">Feed loading...</p>
             </main>
         </div>
 
-        <!-- ================= TELEGRAM VIEW ================= -->
-        <div id="tele-view" class="app-view">
-            <header class="tele-header">
-                <button id="back-to-insta" class="back-btn"><i class="fa-solid fa-arrow-left"></i></button>
-                <h3>Telegram</h3>
-            </header>
-            <div class="tele-search">
-                <input type="text" id="user-search" placeholder="Search users...">
-            </div>
-            <main id="chat-list" class="content-scroll"></main>
-        </div>
-
-        <!-- ================= CHAT WINDOW ================= -->
-        <div id="chat-window" class="app-view">
-            <header class="app-header">
-                <button id="close-chat" class="back-btn"><i class="fa-solid fa-arrow-left"></i></button>
-                <b id="active-chat-name">User</b>
-            </header>
-            <div id="chat-messages" class="content-scroll chat-bg"></div>
-            <div class="chat-input-area">
-                <input type="text" id="msg-input" placeholder="Message...">
-                <button id="send-msg-btn"><i class="fa-solid fa-paper-plane"></i></button>
-            </div>
-        </div>
-
-        <!-- ================= REELS VIEW ================= -->
-        <div id="reels-view" class="app-view">
-            <main id="reels-feed" class="reels-container"></main>
-        </div>
-
-        <!-- ================= PROFILE VIEW ================= -->
-        <div id="profile-view" class="app-view">
-            <header class="app-header">
-                <h3 id="profile-user-title">Profile</h3>
-            </header>
-            <main class="content-scroll">
-                <div class="profile-info">
-                    <div class="profile-pic-large"></div>
-                    <div class="profile-stats">
-                        <div class="stat"><b>0</b><span>posts</span></div>
-                        <div class="stat"><b>0</b><span>followers</span></div>
-                    </div>
-                </div>
-                <div id="user-posts-grid" class="image-grid"></div>
-            </main>
-        </div>
-
-        <!-- ================= BOTTOM NAVIGATION ================= -->
-        <nav id="bottom-nav">
-            <i class="fa-solid fa-house nav-item active" data-view="home"></i>
-            <i class="fa-solid fa-magnifying-glass nav-item"></i>
-            <i class="fa-solid fa-square-plus nav-item"></i>
-            <i class="fa-solid fa-clapperboard nav-item" data-view="reels"></i>
-            <i class="fa-solid fa-user nav-item" data-view="profile"></i>
+        <!-- BOTTOM NAV -->
+        <nav id="nav-bar" style="display:none;">
+            <i class="fa-solid fa-house"></i>
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <i class="fa-solid fa-square-plus"></i>
+            <i class="fa-solid fa-clapperboard"></i>
+            <i class="fa-solid fa-user"></i>
         </nav>
     </div>
 
