@@ -1,5 +1,5 @@
 // ==========================================
-// INSTA-TELE APP SCRIPT.JS (CHAT & UPLOAD FIXED)
+// INSTA-TELE APP SCRIPT.JS (FINAL CHAT FIX)
 // ==========================================
 
 const SUPABASE_URL = 'https://ydjbojsqeujahgqinfmk.supabase.co';
@@ -891,7 +891,7 @@ async function openChatWindow(receiverName) {
         }
     }
 
-    // Real-time listener for incoming messages from other user
+    // Real-time listener
     activeChatSubscription = supabaseClient
         .channel(`chat_${Math.random()}`)
         .on('postgres_changes', { 
@@ -903,7 +903,6 @@ async function openChatWindow(receiverName) {
             if ((newMsg.sender === myName && newMsg.receiver === receiverName) || 
                 (newMsg.sender === receiverName && newMsg.receiver === myName)) {
                 
-                // Avoid duplicating our own message if already appended optimistically
                 if (newMsg.sender !== myName) {
                     if (messagesArea.innerHTML.includes('No messages yet')) {
                         messagesArea.innerHTML = '';
@@ -924,7 +923,7 @@ async function openChatWindow(receiverName) {
         };
     }
 
-    // FIXED SEND MESSAGE HANDLER (Optimistic Update taaki turant screen par dikhe)
+    // ROBUST SEND MESSAGE HANDLER
     const handleSendMessage = async () => {
         if (!chatInput) return;
         const text = chatInput.value.trim();
@@ -932,20 +931,18 @@ async function openChatWindow(receiverName) {
 
         chatInput.value = '';
 
-        // Immediately show message on screen locally
         if (messagesArea.innerHTML.includes('No messages yet')) {
             messagesArea.innerHTML = '';
         }
         appendChatMessage({ sender: myName, receiver: receiverName, message: text });
 
-        // Save to Database
         const { error: sendError } = await supabaseClient
             .from('messages')
             .insert([{ sender: myName, receiver: receiverName, message: text }]);
 
         if (sendError) {
-            console.error("Failed to send message", sendError);
-            alert("Failed to send message to database.");
+            console.error("Database insert error:", sendError);
+            alert("Database Error: " + (sendError.message || "Failed to send message"));
         }
     };
 
@@ -976,4 +973,4 @@ function appendChatMessage(msg) {
 
     messagesArea.appendChild(msgBubble);
     messagesArea.scrollTop = messagesArea.scrollHeight;
-                    }
+}
