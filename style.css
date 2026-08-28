@@ -1,25 +1,36 @@
 @import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&display=swap');
 
-* { margin: 0; padding: 0; box-sizing: border-box; font-family: sans-serif; }
-body { background: #fafafa; display: flex; justify-content: center; }
+* { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, sans-serif; }
+body { background-color: #fafafa; display: flex; justify-content: center; height: 100vh; overflow: hidden; }
 
-#app-wrapper { width: 100%; max-width: 400px; height: 100vh; position: relative; background: #fff; border: 1px solid #dbdbdb; }
+#app-wrapper { width: 100%; max-width: 400px; height: 100dvh; background: #fff; position: relative; border-left: 1px solid #dbdbdb; border-right: 1px solid #dbdbdb; }
 
-/* Views control */
+/* View Control */
 .app-view { display: none; width: 100%; height: 100%; flex-direction: column; background: #fff; }
 .app-view.active { display: flex !important; }
 
-/* Login Design */
-#view-login { justify-content: center; align-items: center; padding: 20px; }
-.login-card { width: 100%; padding: 40px 30px; border: 1px solid #dbdbdb; text-align: center; background: white; }
-.logo { font-family: 'Dancing Script', cursive; font-size: 40px; margin-bottom: 30px; }
-.logo-small { font-family: 'Dancing Script', cursive; font-size: 24px; }
+/* Login Page Styling */
+#login-view { justify-content: center; align-items: center; padding: 20px; background: #fafafa; }
+.login-card { background: #fff; border: 1px solid #dbdbdb; width: 100%; padding: 40px 30px; text-align: center; }
+.insta-logo { font-family: 'Dancing Script', cursive; font-size: 45px; margin-bottom: 30px; }
 
-input { width: 100%; padding: 10px; margin-bottom: 10px; background: #fafafa; border: 1px solid #dbdbdb; border-radius: 4px; outline: none; }
-#btn-login { width: 100%; padding: 10px; background: #0095f6; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
+.login-inputs input { width: 100%; padding: 10px; background: #fafafa; border: 1px solid #dbdbdb; border-radius: 3px; margin-bottom: 8px; font-size: 12px; outline: none; }
+#login-btn { width: 100%; background: #0095f6; color: #fff; border: none; padding: 8px; border-radius: 8px; font-weight: 600; cursor: pointer; margin-top: 10px; }
+#login-btn:active { background: #1877f2; }
 
-/* Navbar */
-#nav-bar { position: absolute; bottom: 0; width: 100%; height: 50px; border-top: 1px solid #dbdbdb; display: flex; justify-content: space-around; align-items: center; background: white; }
+.or-divider { display: flex; align-items: center; margin: 20px 0; }
+.line { flex: 1; height: 1px; background: #dbdbdb; }
+.or-text { padding: 0 15px; color: #8e8e8e; font-size: 13px; font-weight: 600; }
+.fb-login { background: none; border: none; color: #385185; font-weight: 600; cursor: pointer; }
+.signup-box { background: #fff; border: 1px solid #dbdbdb; width: 100%; padding: 20px; text-align: center; margin-top: 10px; font-size: 14px; }
+.error-msg { color: #ed4956; font-size: 13px; margin-top: 15px; }
 
-.header { padding: 10px 15px; border-bottom: 1px solid #dbdbdb; display: flex; justify-content: space-between; align-items: center; }
-#btn-logout { background: none; border: none; color: #0095f6; cursor: pointer; font-weight: bold; }
+/* Home Page Styling */
+.home-header { height: 55px; border-bottom: 1px solid #dbdbdb; display: flex; justify-content: space-between; align-items: center; padding: 0 15px; }
+.insta-logo-small { font-family: 'Dancing Script', cursive; font-size: 26px; }
+.header-actions i { font-size: 22px; margin-left: 15px; cursor: pointer; }
+
+#bottom-nav { position: absolute; bottom: 0; width: 100%; height: 50px; background: #fff; border-top: 1px solid #dbdbdb; display: flex; justify-content: space-around; align-items: center; }
+#bottom-nav i { font-size: 20px; color: #262626; cursor: pointer; }
+
+.welcome-msg { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; color: #8e8e8e; }
