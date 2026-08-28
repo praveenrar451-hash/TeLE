@@ -1,135 +1,72 @@
-// 1. CONFIGURATION
+// CONFIG
 const SUPABASE_URL = 'https://ydjbojsqeujahgqinfmk.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_jxLWxWU876psNuIx-P7cCw_NR9JHzyI';
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const MASTER_PASS = '272009';
 
-// 2. VIEW CONTROLLER (Login se aage le jaane wala function)
-function navigateTo(viewName) {
-    console.log("Navigating to:", viewName);
-    
-    // Saare views hide karo
-    const allViews = document.querySelectorAll('.app-view');
-    allViews.forEach(v => {
-        v.classList.remove('active');
-        v.style.display = 'none'; // Extra safety
-    });
-
-    // Target view show karo
-    const target = document.getElementById(viewName + '-view') || document.getElementById(viewName + '-container');
-    if (target) {
-        target.classList.add('active');
-        target.style.display = 'flex';
-    }
+// FUNCTION: VIEW CHANGER
+function goTo(viewId) {
+    console.log("Moving to view:", viewId);
+    // Hide all
+    document.querySelectorAll('.app-view').forEach(v => v.classList.remove('active'));
+    // Show target
+    const target = document.getElementById('view-' + viewId);
+    if(target) target.classList.add('active');
 
     // Nav bar control
-    const bottomNav = document.getElementById('bottom-nav') || document.getElementById('insta-nav');
-    if (bottomNav) {
-        if (viewName === 'login' || viewName === 'chat') {
-            bottomNav.style.display = 'none';
-        } else {
-            bottomNav.style.display = 'flex';
-        }
+    const nav = document.getElementById('nav-bar');
+    if(viewId === 'login') {
+        nav.style.display = 'none';
+    } else {
+        nav.style.display = 'flex';
     }
 }
 
-// 3. LOGIN LOGIC (Fail-Safe Version)
-async function handleLogin() {
-    console.log("Login attempt started...");
+// LOGIN LOGIC
+document.getElementById('btn-login').addEventListener('click', async function() {
+    console.log("Login button clicked!"); // Debugging
     
-    // IDs check karein (HTML ke hisaab se)
-    const userField = document.getElementById('login-username') || document.getElementById('login-username-input');
-    const passField = document.getElementById('login-password') || document.getElementById('login-password-input');
-    const errorBox = document.getElementById('login-error') || document.getElementById('login-error-msg');
+    const user = document.getElementById('inp-user').value.trim();
+    const pass = document.getElementById('inp-pass').value.trim();
+    const errorBox = document.getElementById('msg-error');
 
-    const user = userField.value.trim();
-    const pass = passField.value.trim();
-
-    if (user === "") {
-        if(errorBox) errorBox.textContent = "Please enter a username.";
+    if(user === "") {
+        errorBox.textContent = "Enter username";
         return;
     }
 
-    if (pass === MASTER_PASS) {
-        console.log("Password Correct!");
-        
-        // 1. Pehle LocalStorage save karo
+    if(pass === MASTER_PASS) {
+        // SUCCESS
         localStorage.setItem('isLoggedIn', 'true');
-        localStorage.setItem('currentUsername', user);
+        localStorage.setItem('currentUser', user);
         
-        // 2. UI ko Turant change karo (Database ka wait mat karo)
-        navigateTo('home');
-
-        // 3. Background mein database update karo (Try-Catch taaki error app na roke)
+        // Change view immediately
+        goTo('home');
+        
+        // Sync with DB in background (ignore errors)
         try {
-            console.log("Syncing user with database...");
             await supabase.from('users').upsert([{ username: user }]);
-            loadFeed(); // Feed load karo
-        } catch (dbError) {
-            console.warn("Database sync failed, but login allowed:", dbError);
-        }
-
+        } catch(e) { console.log("DB sync skipped"); }
+        
     } else {
-        console.log("Wrong Password!");
-        if(errorBox) errorBox.textContent = "Incorrect password. Please try again.";
-        passField.value = ""; // Clear password field
-    }
-}
-
-// Event Listeners set karo
-document.addEventListener('DOMContentLoaded', () => {
-    const loginBtn = document.getElementById('login-btn') || document.getElementById('login-submit-btn');
-    if (loginBtn) {
-        loginBtn.onclick = handleLogin;
-    }
-
-    // Enter key support
-    document.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            const activeView = document.querySelector('.app-view.active');
-            if (activeView && activeView.id.includes('login')) {
-                handleLogin();
-            }
-        }
-    });
-
-    // Check session
-    if (localStorage.getItem('isLoggedIn') === 'true') {
-        navigateTo('home');
-        loadFeed();
-    } else {
-        navigateTo('login');
+        // WRONG PASSWORD
+        errorBox.textContent = "Incorrect password. Try again.";
+        document.getElementById('inp-pass').value = ""; // Clear pass
     }
 });
 
-// --- DUMMY FEED LOAD (Taaki screen khali na dikhe) ---
-async function loadFeed() {
-    const feed = document.getElementById('main-feed') || document.getElementById('posts-feed');
-    if (!feed) return;
-    
-    try {
-        const { data, error } = await supabase.from('posts').select('*').order('created_at', {ascending: false});
-        if (error) throw error;
-        
-        feed.innerHTML = "";
-        if (!data || data.length === 0) {
-            feed.innerHTML = "<p style='padding:20px; color:grey; text-align:center;'>No posts yet. Be the first to share!</p>";
-            return;
-        }
+// LOGOUT
+document.getElementById('btn-logout').onclick = () => {
+    localStorage.clear();
+    location.reload();
+};
 
-        data.forEach(post => {
-            const div = document.createElement('div');
-            div.className = "post-card";
-            div.style.borderBottom = "1px solid #dbdbdb";
-            div.innerHTML = `
-                <div style="padding:10px; font-weight:bold;">${post.username}</div>
-                <img src="${post.image_url}" style="width:100%; display:block;">
-                <div style="padding:10px;"><b>${post.username}</b> ${post.caption || ''}</div>
-            `;
-            feed.appendChild(div);
-        });
-    } catch (err) {
-        feed.innerHTML = "<p style='padding:20px; color:red; text-align:center;'>Error loading feed. Check internet.</p>";
+// CHECK SESSION ON LOAD
+window.onload = () => {
+    if(localStorage.getItem('isLoggedIn') === 'true') {
+        goTo('home');
+    } else {
+        goTo('login');
     }
-}
+};
