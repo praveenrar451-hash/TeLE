@@ -1,47 +1,239 @@
-* { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-body { background-color: #000; color: #fff; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+const SUPABASE_URL = 'https://ydjbojsqeujahgqinfmk.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_jxLWxWU876psNuIx-P7cCw_NR9JHzyI';
 
-#app-container { width: 100%; max-width: 480px; height: 100vh; background: #000; display: flex; flex-direction: column; position: relative; overflow: hidden; border-left: 1px solid #262626; border-right: 1px solid #262626; }
-@media(min-width: 481px) { #app-container { height: 90vh; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.8); } }
+let supabaseClient = null;
+try {
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+} catch(e) {}
 
-/* Views Management */
-.app-view { display: none; flex-direction: column; flex: 1; height: calc(100vh - 55px); overflow-y: auto; background: #000; }
-.app-view.active { display: flex; }
+let currentChatRecipient = null;
 
-/* Auth Container */
-#auth-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 500; background: #000; justify-content: center; align-items: center; padding: 30px; text-align: center; display: none; }
-#auth-container.active { display: flex; }
+window.addEventListener('DOMContentLoaded', () => {
+    const savedUser = localStorage.getItem('currentUsername');
+    if (savedUser) {
+        enterApp(savedUser);
+    } else {
+        document.getElementById('auth-container').classList.add('active');
+    }
+});
 
-.insta-logo { font-family: 'Brush Script MT', cursive; font-size: 45px; margin-bottom: 30px; letter-spacing: 2px; color: #fff; }
-.auth-input { width: 100%; padding: 12px; margin-bottom: 10px; background: #121212; border: 1px solid #262626; border-radius: 6px; color: #fff; font-size: 14px; outline: none; }
-.auth-btn { width: 100%; padding: 12px; background: #0095f6; border: none; border-radius: 6px; color: #fff; font-weight: bold; font-size: 14px; cursor: pointer; margin-top: 10px; }
-.auth-switch { margin-top: 20px; font-size: 13px; color: #aaa; cursor: pointer; }
-.auth-switch span { color: #0095f6; font-weight: bold; }
+function toggleAuthMode(isSignup) {
+    document.getElementById('login-form-box').style.display = isSignup ? 'none' : 'block';
+    document.getElementById('signup-form-box').style.display = isSignup ? 'block' : 'none';
+}
 
-/* Headers & Navigation */
-.top-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid #262626; background: #000; position: sticky; top: 0; z-index: 10; }
-.top-header h2 { font-size: 18px; font-weight: 700; }
+async function handleSignup() {
+    const username = document.getElementById('signup-username').value.trim();
+    const email = document.getElementById('signup-email').value.trim();
+    const password = document.getElementById('signup-password').value.trim();
 
-.bottom-nav { height: 55px; background: #000; border-top: 1px solid #262626; display: none; justify-content: space-around; align-items: center; position: absolute; bottom: 0; width: 100%; z-index: 100; }
-.bottom-nav i { font-size: 22px; cursor: pointer; color: #fff; }
-.bottom-nav i:hover { color: #0095f6; }
+    if (!username || !email || !password) { alert("Sabhi fields bharein!"); return; }
 
-/* Feed Posts */
-.post-card { background: #000; border-bottom: 1px solid #262626; margin-bottom: 15px; }
-.post-header { display: flex; align-items: center; gap: 10px; padding: 10px 12px; }
-.avatar { width: 32px; height: 32px; border-radius: 50%; background: #444; background-size: cover; background-position: center; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 13px; color: #fff; }
-.post-img-container { width: 100%; max-height: 450px; background: #111; overflow: hidden; display: flex; justify-content: center; align-items: center; }
-.post-img-container img { width: 100%; object-fit: cover; }
-.post-actions { display: flex; gap: 15px; font-size: 22px; padding: 10px 12px 6px 12px; }
-.post-details { padding: 0 12px 12px 12px; font-size: 13px; }
+    if (supabaseClient) {
+        const { error } = await supabaseClient.auth.signUp({ email, password });
+        if (error) { alert(error.message); return; }
+        await supabaseClient.from('users').insert([{ username, email }]);
+    }
+    localStorage.setItem('currentUsername', username);
+    enterApp(username);
+}
 
-/* Chats */
-.chat-user-row { display: flex; align-items: center; gap: 12px; padding: 12px 15px; cursor: pointer; border-bottom: 1px solid #1a1a1a; }
-.chat-user-row:hover { background: #111; }
-.chat-messages-box { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
-.chat-msg { max-width: 70%; padding: 10px 14px; border-radius: 12px; font-size: 13px; line-height: 1.4; }
-.chat-msg.sent { background: #0084ff; align-self: flex-end; border-bottom-right-radius: 2px; }
-.chat-msg.received { background: #262626; align-self: flex-start; border-bottom-left-radius: 2px; }
-.chat-input-bar { display: flex; padding: 10px; background: #121212; border-top: 1px solid #262626; gap: 10px; align-items: center; }
-.chat-input-bar input { flex: 1; background: transparent; border: none; color: #fff; font-size: 14px; outline: none; padding: 8px; }
-.chat-input-bar button { background: #0095f6; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; font-weight: bold; cursor: pointer; }
+async function handleLogin() {
+    const email = document.getElementById('login-email').value.trim();
+    const password = document.getElementById('login-password').value.trim();
+
+    if (!email || !password) { alert("Email aur password dalein!"); return; }
+
+    if (supabaseClient) {
+        const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+        if (error) { alert("Login failed: " + error.message); return; }
+    }
+    let username = email.split('@')[0];
+    localStorage.setItem('currentUsername', username);
+    enterApp(username);
+}
+
+function enterApp(username) {
+    document.getElementById('auth-container').classList.remove('active');
+    document.getElementById('main-bottom-nav').style.display = 'flex';
+    switchView('insta-feed-container');
+    
+    document.getElementById('profile-display-name').textContent = username;
+    document.getElementById('my-profile-username').textContent = username;
+    document.getElementById('my-profile-avatar').textContent = username.charAt(0).toUpperCase();
+}
+
+function handleLogout() {
+    localStorage.removeItem('currentUsername');
+    location.reload();
+}
+
+function switchView(viewId) {
+    document.querySelectorAll('.app-view').forEach(v => v.classList.remove('active'));
+    document.getElementById(viewId).classList.add('active');
+
+    if (viewId === 'insta-feed-container') fetchFeedPosts();
+    if (viewId === 'chat-container') fetchActiveChats();
+}
+
+// --- INSTAGRAM FEED ---
+async function fetchFeedPosts() {
+    const feedArea = document.getElementById('feed-posts-area');
+    feedArea.innerHTML = '<div style="text-align:center; color:#777; padding:20px;">Loading...</div>';
+    let posts = [];
+    if (supabaseClient) {
+        const { data } = await supabaseClient.from('posts').select('*').order('created_at', { ascending: false });
+        posts = data || [];
+    }
+    feedArea.innerHTML = posts.length === 0 ? '<div style="text-align:center; color:#777; padding:40px;">No posts yet.</div>' : '';
+    posts.forEach(post => {
+        const card = document.createElement('div');
+        card.className = 'post-card';
+        card.innerHTML = `
+            <div class="post-header">
+                <div class="avatar">${post.username.charAt(0).toUpperCase()}</div>
+                <b>${post.username}</b>
+            </div>
+            <div class="post-img-container"><img src="${post.image_url}"></div>
+            <div class="post-actions">
+                <i class="fa-regular fa-heart" onclick="this.classList.toggle('fa-solid'); this.style.color=this.classList.contains('fa-solid')?'#ed4956':'#fff'"></i>
+                <i class="fa-regular fa-comment"></i>
+            </div>
+            <div class="post-details"><p><b>${post.username}</b> ${post.caption || ''}</p></div>
+        `;
+        feedArea.appendChild(card);
+    });
+}
+
+function openUploadModal() { document.getElementById('upload-modal').style.display = 'flex'; }
+function closeUploadModal() { document.getElementById('upload-modal').style.display = 'none'; }
+
+async function submitNewPost() {
+    const imageUrl = document.getElementById('upload-image-url').value.trim();
+    const caption = document.getElementById('upload-caption-text').value.trim();
+    const username = localStorage.getItem('currentUsername');
+
+    if (!imageUrl) { alert("Image URL dalein!"); return; }
+
+    if (supabaseClient) {
+        await supabaseClient.from('posts').insert([{ username, image_url: imageUrl, caption }]);
+    }
+    closeUploadModal();
+    document.getElementById('upload-image-url').value = '';
+    document.getElementById('upload-caption-text').value = '';
+    switchView('insta-feed-container');
+}
+
+// --- EXPLORE & SEARCH USERS ---
+async function searchGlobalUsers(query) {
+    const list = document.getElementById('search-results-list');
+    if (!query.trim()) { list.innerHTML = ''; return; }
+
+    if (supabaseClient) {
+        const { data } = await supabaseClient.from('users').select('username').ilike('username', `%${query}%`);
+        list.innerHTML = '';
+        const myName = localStorage.getItem('currentUsername');
+        (data || []).forEach(u => {
+            if (u.username === myName) return;
+            const row = document.createElement('div');
+            row.className = 'chat-user-row';
+            row.innerHTML = `<div class="avatar">${u.username.charAt(0).toUpperCase()}</div><b>${u.username}</b>`;
+            row.onclick = () => {
+                switchView('chat-container');
+                openChatWindow(u.username);
+            };
+            list.appendChild(row);
+        });
+    }
+}
+
+// --- TELEGRAM ACTIVE CHATS (Sirf wahi users jinse chat hui hai) ---
+async function fetchActiveChats() {
+    const chatList = document.getElementById('chat-users-list');
+    chatList.innerHTML = '<div style="text-align:center; color:#777; padding:20px;">Loading chats...</div>';
+    const myName = localStorage.getItem('currentUsername');
+
+    let activeUsers = new Set();
+    if (supabaseClient) {
+        const { data } = await supabaseClient.from('messages')
+            .select('sender, receiver')
+            .or(`sender.eq.${myName},receiver.eq.${myName}`);
+        
+        if (data) {
+            data.forEach(m => {
+                if (m.sender !== myName) activeUsers.add(m.sender);
+                if (m.receiver !== myName) activeUsers.add(m.receiver);
+            });
+        }
+    }
+
+    chatList.innerHTML = '';
+    if (activeUsers.size === 0) {
+        chatList.innerHTML = '<div style="text-align:center; color:#777; padding:40px;">No active chats yet. Use search in explore to message someone.</div>';
+        return;
+    }
+
+    activeUsers.forEach(username => {
+        const row = document.createElement('div');
+        row.className = 'chat-user-row';
+        row.innerHTML = `
+            <div class="avatar">${username.charAt(0).toUpperCase()}</div>
+            <div><b>${username}</b><p style="font-size:12px; color:#888;">Tap to open chat</p></div>
+        `;
+        row.onclick = () => openChatWindow(username);
+        chatList.appendChild(row);
+    });
+}
+
+function openChatWindow(recipient) {
+    currentChatRecipient = recipient;
+    document.getElementById('active-chat-username').textContent = recipient;
+    document.getElementById('active-chat-window').style.display = 'flex';
+    loadMessages();
+}
+
+function closeChatWindow() {
+    document.getElementById('active-chat-window').style.display = 'none';
+    currentChatRecipient = null;
+    fetchActiveChats();
+}
+
+async function loadMessages() {
+    const msgBox = document.getElementById('chat-messages-list');
+    const myName = localStorage.getItem('currentUsername');
+    msgBox.innerHTML = '';
+
+    let messages = [];
+    if (supabaseClient) {
+        const { data } = await supabaseClient.from('messages')
+            .select('*')
+            .or(`and(sender.eq.${myName},receiver.eq.${currentChatRecipient}),and(sender.eq.${currentChatRecipient},receiver.eq.${myName})`)
+            .order('created_at', { ascending: true });
+        messages = data || [];
+    }
+
+    messages.forEach(m => {
+        const div = document.createElement('div');
+        div.className = `chat-msg ${m.sender === myName ? 'sent' : 'received'}`;
+        div.textContent = m.message;
+        msgBox.appendChild(div);
+    });
+    msgBox.scrollTop = msgBox.scrollHeight;
+}
+
+async function sendDirectMessage() {
+    const input = document.getElementById('chat-message-input');
+    const text = input.value.trim();
+    if (!text || !currentChatRecipient) return;
+
+    const myName = localStorage.getItem('currentUsername');
+
+    if (supabaseClient) {
+        await supabaseClient.from('messages').insert([
+            { sender: myName, receiver: currentChatRecipient, message: text }
+        ]);
+    }
+
+    input.value = '';
+    loadMessages();
+      }
