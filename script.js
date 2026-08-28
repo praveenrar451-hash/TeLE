@@ -237,3 +237,51 @@ async function sendDirectMessage() {
     input.value = '';
     loadMessages();
 }
+// --- INSTAGRAM PROFILE EXTENSIONS ---
+// Jab bhi profile view khulegi, yeh function user ke posts load karega
+async function loadUserProfilePosts() {
+    const username = localStorage.getItem('currentUsername');
+    const gridArea = document.getElementById('my-profile-grid');
+    if (!gridArea) return;
+
+    gridArea.innerHTML = '<div style="grid-column: span 3; text-align:center; color:#777; padding:20px;">Loading...</div>';
+
+    let posts = [];
+    if (supabaseClient) {
+        const { data } = await supabaseClient.from('posts').select('*').eq('username', username).order('created_at', { ascending: false });
+        posts = data || [];
+    }
+
+    document.getElementById('profile-posts-count').textContent = posts.length;
+    gridArea.innerHTML = '';
+
+    if (posts.length === 0) {
+        gridArea.innerHTML = '<div style="grid-column: span 3; text-align:center; color:#777; padding:40px; font-size:13px;">No Posts Yet</div>';
+        return;
+    }
+
+    posts.forEach(post => {
+        const img = document.createElement('img');
+        img.src = post.image_url;
+        img.onerror = () => { img.style.background = '#222'; };
+        gridArea.appendChild(img);
+    });
+}
+
+function editProfileBio() {
+    const newBio = prompt("Enter new bio:", "Building InstaTelegram 🚀");
+    if (newBio !== null) {
+        document.getElementById('profile-bio-text').textContent = newBio;
+    }
+}
+
+// SwitchView function mein profile trigger add karne ke liye check karein
+const originalSwitchView = window.switchView;
+window.switchView = function(viewId) {
+    if (typeof originalSwitchView === 'function') {
+        originalSwitchView(viewId);
+    }
+    if (viewId === 'profile-container') {
+        loadUserProfilePosts();
+    }
+};
