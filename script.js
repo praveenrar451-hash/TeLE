@@ -500,19 +500,42 @@ function setupRealtimeChat() {
         supabaseClient.removeChannel(activeChatSubscription);
     }
 
+    const currentUser = localStorage.getItem('currentUsername');
+    const channelName = `chat_${[currentUser, activeChatUser].sort().join('_')}`;
+
     activeChatSubscription = supabaseClient
-        .channel('public:messages')
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
-            const newMsg = payload.new;
-            const currentUser = localStorage.getItem('currentUsername');
-            if (
-                (newMsg.sender === currentUser && newMsg.receiver === activeChatUser) ||
-                (newMsg.sender === activeChatUser && newMsg.receiver === currentUser)
-            ) {
-                loadChatMessages();
+        .channel(channelName)
+        .on(
+            'postgres_changes',
+            {
+                event: 'INSERT',
+                schema: 'public',
+                table: 'messages',
+                filter: `receiver=eq.${currentUser}`
+            },
+            payload => {
+                const newMsg = payload.new;
+                if (newMsg.sender === activeChatUser) {
+                    appendMessageToDOM(newMsg);
+                }
             }
-        })
+        )
         .subscribe();
+}
+
+function appendMessageToDOM(msg) {
+    const msgContainer = document.getElementById('chatroom-messages');
+    const currentUser = localStorage.getItem('currentUsername');
+    
+    const placeholder = msgContainer.querySelector('div[style*="text-align:center"]');
+    if (placeholder) placeholder.remove();
+
+    const isMe = msg.sender === currentUser;
+    const bubble = document.createElement('div');
+    bubble.style.cssText = `max-width: 70%; padding: 10px 14px; border-radius: 14px; font-size: 14px; word-break: break-word; align-self: ${isMe ? 'flex-end' : 'flex-start'}; background: ${isMe ? '#0095f6' : '#262626'}; color: #fff;`;
+    bubble.textContent = msg.message;
+    msgContainer.appendChild(bubble);
+    msgContainer.scrollTop = msgContainer.scrollHeight;
 }
 
 async function sendChatMessage() {
@@ -534,4 +557,4 @@ async function sendChatMessage() {
 
 function openChatWithUser() {
     openChatWith(viewingTargetUser);
-            }
+}
