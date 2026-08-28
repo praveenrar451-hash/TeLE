@@ -826,3 +826,120 @@ window.addEventListener('DOMContentLoaded', () => {
         }
     }
 });
+// ==========================================
+// ALL-IN-ONE FIX: AVATAR, USERNAME & VIEW MEMORY
+// ==========================================
+
+document.addEventListener("DOMContentLoaded", () => {
+    // 1. Refresh karne par wahi page kholne ka fix jahan user tha
+    const lastActiveView = localStorage.getItem('activeAppView');
+    if (lastActiveView && document.getElementById(lastActiveView)) {
+        setTimeout(() => {
+            switchView(lastActiveView);
+        }, 150);
+    }
+
+    // 2. Profile open hone par real username aur DP load karna
+    const currentUname = localStorage.getItem('currentUsername');
+    if (currentUname) {
+        const nameEl = document.getElementById('my-profile-username');
+        const dispEl = document.getElementById('profile-display-name');
+        if (nameEl) nameEl.textContent = currentUname;
+        if (dispEl) dispEl.textContent = currentUname;
+
+        // Saved DP restore karna
+        const savedPic = localStorage.getItem(`userAvatar_${currentUname}`);
+        if (savedPic) {
+            applyAvatarToElement(document.getElementById('my-profile-avatar'), savedPic);
+        }
+    }
+
+    // 3. Global avatars apply karna
+    applyGlobalAvatarsToAll();
+});
+
+// View switch karte waqt view yaad rakhna
+const originalSwitchFunc = window.switchView;
+window.switchView = function(viewId) {
+    if (typeof originalSwitchFunc === 'function') {
+        originalSwitchFunc(viewId);
+    }
+    localStorage.setItem('activeAppView', viewId);
+    setTimeout(applyGlobalAvatarsToAll, 200);
+};
+
+// Global Avatars ko har jagah (feed, chat, comments, profile) dikhane ka function
+function applyGlobalAvatarsToAll() {
+    // Sabhi elements jinme data-username ya avatar classes hain
+    document.querySelectorAll('.avatar, [data-username]').forEach(el => {
+        let uname = el.getAttribute('data-username');
+        if (!uname) {
+            // Agar parent ya row se username mil jaye
+            const parentRow = el.closest('[data-username]') || el.closest('.chat-user-row') || el.closest('.post-card');
+            if (parentRow) uname = parentRow.getAttribute('data-username');
+        }
+        
+        if (uname) {
+            const userPic = localStorage.getItem(`userAvatar_${uname}`);
+            if (userPic) {
+                const targetDiv = el.classList.contains('avatar') ? el : el.querySelector('.avatar');
+                if (targetDiv) {
+                    targetDiv.style.backgroundImage = `url('${userPic}')`;
+                    targetDiv.style.backgroundSize = 'cover';
+                    targetDiv.style.backgroundPosition = 'center';
+                    targetDiv.textContent = '';
+                }
+            }
+        }
+    });
+}
+
+function applyAvatarToElement(el, url) {
+    if (el && url) {
+        el.style.backgroundImage = `url('${url}')`;
+        el.style.backgroundSize = 'cover';
+        el.style.backgroundPosition = 'center';
+        el.textContent = '';
+    }
+}
+
+// 4. Username aur Bio change karke Database & LocalStorage me permanently save karne ka fix
+window.saveProfileChanges = async function() {
+    const oldUname = localStorage.getItem('currentUsername');
+    const newUnameInput = document.getElementById('edit-name-input');
+    const newBioInput = document.getElementById('edit-bio-input');
+    
+    if (!newUnameInput) return;
+    const newUname = newUnameInput.value.trim();
+    const newBio = newBioInput ? newBioInput.value.trim() : '';
+
+    if (!newUname) {
+        alert("Username cannot be empty!");
+        return;
+    }
+
+    if (window.supabaseClient) {
+        // Supabase database me username update karein
+        const { error } = await window.supabaseClient
+            .from('users')
+            .update({ username: newUname, bio: newBio })
+            .eq('username', oldUname);
+
+        if (error) {
+            alert("Error updating: " + error.message);
+            return;
+        }
+    }
+
+    // LocalStorage update taaki refresh par purana na ho
+    localStorage.setItem('currentUsername', newUname);
+    
+    // Agar DP bhi thi to naye username ke sath map karein
+    const oldPic = localStorage.getItem(`userAvatar_${oldUname}`);
+    if (oldPic) {
+        localStorage.setItem(`userAvatar_${newUname}`, oldPic);
+    }
+
+    alert("Profile updated successfully!");
+    location.reload();
+};
