@@ -1,402 +1,68 @@
- {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+:root {
+    --bg-black: #000;
+    --border-gray: #262626;
+    --insta-blue: #0095f6;
+    --text-white: #f5f5f5;
 }
 
-body {
-    background-color: #000;
-    color: #fff;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    min-height: 100vh;
-    overflow: hidden;
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #121212; color: var(--text-white); font-family: sans-serif; overflow: hidden; }
+
+#app-wrapper {
+    width: 100%; max-width: 450px; height: 100vh; height: 100dvh;
+    margin: 0 auto; position: relative; background: var(--bg-black);
+    box-shadow: 0 0 20px rgba(0,0,0,0.5);
 }
 
-/* App Views - Absolute positioning taaki overlap na ho */
 .app-view {
-    display: none !important;
-    width: 100%;
-    max-width: 480px;
-    height: 100vh;
-    height: 100dvh;
-    background-color: #121212;
-    position: absolute;
-    top: 0;
-    left: 0;
-    flex-direction: column;
-    z-index: 10;
+    display: none; width: 100%; height: 100%; flex-direction: column;
+    position: absolute; top: 0; left: 0; background: var(--bg-black);
+}
+.app-view.active { display: flex; }
+
+/* HEADER & NAV */
+.view-header, .reels-header, .tele-header {
+    height: 55px; border-bottom: 1px solid var(--border-gray);
+    display: flex; justify-content: space-between; align-items: center; padding: 0 15px;
 }
 
-.app-view.active {
-    display: flex !important;
+#bottom-nav {
+    position: absolute; bottom: 0; width: 100%; height: 55px;
+    background: var(--bg-black); border-top: 1px solid var(--border-gray);
+    display: flex; justify-content: space-around; align-items: center; z-index: 100;
 }
+#bottom-nav i { font-size: 22px; color: #888; cursor: pointer; }
+#bottom-nav i.active { color: #fff; }
 
-/* Login Screen */
-#login-container {
-    justify-content: center;
-    align-items: center;
-    padding: 24px;
-    z-index: 50;
+.scroll-content { flex: 1; overflow-y: auto; padding-bottom: 60px; scrollbar-width: none; }
+.scroll-content::-webkit-scrollbar { display: none; }
+
+/* POST CARD */
+.post-card { margin-bottom: 15px; border-bottom: 1px solid var(--border-gray); }
+.post-img-container { position: relative; width: 100%; aspect-ratio: 1; overflow: hidden; }
+.post-img-container img { width: 100%; height: 100%; object-fit: cover; }
+
+/* DOUBLE TAP HEART */
+.heart-icon {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0);
+    font-size: 80px; color: #fff; opacity: 0; pointer-events: none;
 }
-
-.login-box {
-    width: 100%;
-    max-width: 320px;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    text-align: center;
-}
-
-.login-box h2 {
-    font-family: cursive;
-    font-size: 36px;
-    margin-bottom: 8px;
-}
-
-.login-subtitle {
-    font-size: 14px;
-    color: #a8a8a8;
-    margin-bottom: 12px;
-}
-
-.login-box input {
-    width: 100%;
-    padding: 12px;
-    background: #262626;
-    border: 1px solid #363636;
-    border-radius: 6px;
-    color: #fff;
-    font-size: 16px;
-    outline: none;
-    text-align: center;
-}
-
-.login-box button {
-    width: 100%;
-    padding: 12px;
-    background: #0095f6;
-    border: none;
-    border-radius: 6px;
-    color: #fff;
-    font-weight: bold;
-    font-size: 15px;
-    cursor: pointer;
-}
-
-.error-text {
-    color: #ed4956;
-    font-size: 13px;
-    min-height: 18px;
-}
-
-/* Headers & Navigation */
-.insta-header, .tele-header, .chat-win-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 12px 16px;
-    background-color: #000;
-    border-bottom: 1px solid #262626;
-    flex-shrink: 0;
-}
-
-.insta-header h2, .tele-header h3 {
-    font-family: cursive;
-    font-weight: bold;
-    font-size: 20px;
-}
-
-.header-icons {
-    display: flex;
-    gap: 16px;
-    align-items: center;
-}
-
-.infinity-btn, .logout-icon-btn, .back-btn {
-    background: none;
-    border: none;
-    font-size: 18px;
-    color: #fff;
-    cursor: pointer;
-}
-
-.insta-main, .tele-content {
-    flex: 1;
-    overflow-y: auto;
-    padding-bottom: 60px;
-    background-color: #000;
-}
-
-.search-box-section, .tele-search-box {
-    padding: 10px 16px;
-}
-
-.search-box-section input, .tele-search-box input {
-    width: 100%;
-    padding: 8px 12px;
-    background: #121212;
-    border: 1px solid #262626;
-    border-radius: 6px;
-    color: #fff;
-    outline: none;
-}
-
-.tele-search-box {
-    display: flex;
-    align-items: center;
-    background: #121212;
-    margin: 8px 16px;
-    border-radius: 6px;
-    gap: 10px;
-    border: 1px solid #262626;
-}
-
-/* Bottom Navigation */
-.insta-nav {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    width: 100%;
-    display: flex;
-    justify-content: space-around;
-    padding: 12px 0;
-    background-color: #000;
-    border-top: 1px solid #262626;
-    font-size: 20px;
-    z-index: 100;
-}
-
-.insta-nav i {
-    cursor: pointer;
-    color: #888;
-}
-
-.insta-nav i.active {
-    color: #fff;
-}
-
-/* Upload Modal Styles */
-.modal-overlay {
-    display: none;
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100vh;
-    background-color: rgba(0, 0, 0, 0.85);
-    justify-content: center;
-    align-items: center;
-    z-index: 200;
-}
-
-.modal-overlay.active {
-    display: flex !important;
-}
-
-.modal-box {
-    width: 90%;
-    max-width: 360px;
-    background-color: #262626;
-    border-radius: 12px;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-}
-
-.modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 12px 16px;
-    border-bottom: 1px solid #363636;
-}
-
-.modal-body {
-    padding: 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
-.modal-body textarea {
-    width: 100%;
-    height: 80px;
-    background: #121212;
-    border: 1px solid #363636;
-    border-radius: 6px;
-    padding: 8px;
-    color: #fff;
-    resize: none;
-    outline: none;
-}
-
-.modal-body button, .modal-header button {
-    cursor: pointer;
-}
-
-.modal-body button {
-    width: 100%;
-    padding: 10px;
-    background: #0095f6;
-    border: none;
-    border-radius: 6px;
-    color: #fff;
-    font-weight: bold;
-}
-
-/* Chat Window Screen */
-.chat-window-screen {
-    display: none !important;
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100vh;
-    height: 100dvh;
-    background-color: #000;
-    flex-direction: column;
-    z-index: 150;
-}
-
-.chat-window-screen.active {
-    display: flex !important;
-}
-
-.chat-messages-area {
-    flex: 1;
-    padding: 15px;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.chat-input-area {
-    display: flex;
-    padding: 10px;
-    background: #121212;
-    border-top: 1px solid #262626;
-    gap: 10px;
-    flex-shrink: 0;
-}
-
-.chat-input-area input {
-    flex: 1;
-    background: #262626;
-    border: none;
-    padding: 10px;
-    border-radius: 5px;
-    color: #fff;
-    outline: none;
-}
-
-.chat-input-area button {
-    background: #0095f6;
-    border: none;
-    color: #fff;
-    padding: 0 18px;
-    border-radius: 5px;
-    cursor: pointer;
-}
-
-/* --- NEW STYLES FOR REELS & PROFILE TABS FIX --- */
-
-#reels-container {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100vh;
-    height: 100dvh;
-    background: #000;
-    display: none;
-    flex-direction: column;
-    z-index: 150;
-}
-
-#reels-container.active {
-    display: flex !important;
-}
-
-#reels-feed {
-    width: 100%;
-    flex: 1;
-    overflow-y: scroll;
-    scroll-snap-type: y mandatory;
-    scroll-behavior: smooth;
-}
-
-/* Profile Tabs & Grid Layout for Posts/Reels */
-#profile-tabs-bar {
-    display: flex;
-    border-top: 1px solid #262626;
-    border-bottom: 1px solid #262626;
-    margin-top: 15px;
-}
-
-#user-profile-posts, #user-profile-reels {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 2px;
-    padding: 2px;
-    width: 100%;
-}
-
-/* Reels Container Fix */
-#reels-container {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100vh;
-    height: 100dvh;
-    background: #000;
-    display: none;
-    flex-direction: column;
-    z-index: 150;
-    overflow: hidden;
-}
-
-#reels-container.active {
-    display: flex !important;
-}
-
-#reels-feed {
-    width: 100%;
-    flex: 1;
-    overflow-y: scroll;
-    scroll-snap-type: y mandatory;
-    scroll-behavior: smooth;
-    position: relative;
-}
-
-/* Profile Grids Layout */
-#user-profile-posts, #user-profile-reels {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 2px;
-    padding: 2px;
-    width: 100%;
-}
-
-@keyframes heartPop {
+.heart-icon.animate { animation: pop 0.7s ease-out; }
+@keyframes pop {
     0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
-    45% { transform: translate(-50%, -50%) scale(1.3); opacity: 1; }
+    50% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
     100% { transform: translate(-50%, -50%) scale(1); opacity: 0; }
 }
 
-.heart-animation {
-    animation: heartPop 0.8s ease-out forwards;
-}
+/* REELS SNAPPING */
+.snapping-feed { flex: 1; overflow-y: scroll; scroll-snap-type: y mandatory; }
+.reel-video { width: 100%; height: 100%; scroll-snap-align: start; object-fit: cover; }
 
-.online-dot {
-    width: 10px;
-    height: 10px;
-    background: #4cd137;
-    border-radius: 50%;
-    border: 2px solid #000;
-}
+/* CHAT STYLING */
+.msg { padding: 10px 15px; margin: 5px; border-radius: 15px; max-width: 70%; font-size: 14px; }
+.msg.sent { background: var(--insta-blue); align-self: flex-end; margin-left: auto; }
+.msg.received { background: var(--border-gray); align-self: flex-start; }
+
+/* IMAGE GRID (Explore/Profile) */
+.image-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; }
+.image-grid img { width: 100%; aspect-ratio: 1; object-fit: cover; }
