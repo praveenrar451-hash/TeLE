@@ -943,3 +943,156 @@ window.saveProfileChanges = async function() {
     alert("Profile updated successfully!");
     location.reload();
 };
+// ==========================================
+// INSTAGRAM REAL-TIME GLOBAL PROFILE & DP FIX
+// ==========================================
+
+// 1. Har jagah Avatars (DP) ko live render karne ka universal function
+window.renderAllAvatarsOnScreen = function() {
+    document.querySelectorAll('.avatar, [data-username]').forEach(el => {
+        let username = el.getAttribute('data-username');
+        if (!username) {
+            const parent = el.closest('[data-username]') || el.closest('.chat-user-row') || el.closest('.post-card') || el.closest('div');
+            if (parent) username = parent.getAttribute('data-username');
+        }
+
+        if (username) {
+            const dpUrl = localStorage.getItem(`userAvatar_${username}`);
+            const targetAvatar = el.classList.contains('avatar') ? el : el.querySelector('.avatar');
+            
+            if (targetAvatar && dpUrl) {
+                targetAvatar.style.backgroundImage = `url('${dpUrl}')`;
+                targetAvatar.style.backgroundSize = 'cover';
+                targetAvatar.style.backgroundPosition = 'center';
+                targetAvatar.textContent = '';
+            }
+        }
+    });
+};
+
+// 2. Dusre user ki profile dekhne ka proper Instagram view
+window.openUserProfile = async function(targetUsername) {
+    const myName = localStorage.getItem('currentUsername');
+    if (targetUsername === myName) {
+        switchView('profile-container');
+        return;
+    }
+
+    let view = document.getElementById('other-profile-container');
+    if (!view) {
+        view = document.createElement('div');
+        view.id = 'other-profile-container';
+        view.className = 'app-view';
+        document.getElementById('app-container').appendChild(view);
+    }
+
+    document.querySelectorAll('.app-view').forEach(v => v.classList.remove('active'));
+    view.classList.add('active');
+    view.style.display = 'block';
+
+    view.innerHTML = `<div style="text-align:center; color:#777; padding:50px;">Loading profile...</div>`;
+
+    let isFollowing = false;
+    let postCount = 0;
+    let followersCount = 0;
+    let followingCount = 0;
+    let targetBio = "Instagram User 🚀";
+
+    if (window.supabaseClient) {
+        // Check follow status
+        const { data: followData } = await window.supabaseClient
+            .from('follows')
+            .select('*')
+            .eq('follower', myName)
+            .eq('following', targetUsername)
+            .single();
+        if (followData) isFollowing = true;
+
+        // Fetch counts
+        const { count: pCount } = await window.supabaseClient.from('posts').select('*', { count: 'exact', head: true }).eq('username', targetUsername);
+        postCount = pCount || 0;
+
+        const { count: fCount } = await window.supabaseClient.from('follows').select('*', { count: 'exact', head: true }).eq('following', targetUsername);
+        followersCount = fCount || 0;
+
+        const { count: fgCount } = await window.supabaseClient.from('follows').select('*', { count: 'exact', head: true }).eq('follower', targetUsername);
+        followingCount = fgCount || 0;
+
+        // Fetch user bio if exists
+        const { data: userData } = await window.supabaseClient.from('users').select('bio').eq('username', targetUsername).single();
+        if (userData && userData.bio) targetBio = userData.bio;
+    }
+
+    const dp = localStorage.getItem(`userAvatar_${targetUsername}`) || '';
+    const dpStyle = dp ? `background-image: url('${dp}'); background-size: cover; background-position: center;` : '';
+
+    view.innerHTML = `
+        <div class="top-header">
+            <div style="display:flex; align-items:center; gap:15px;">
+                <i class="fa-solid fa-arrow-left" onclick="switchView('insta-feed-container')" style="cursor:pointer; font-size:18px;"></i>
+                <h2 style="font-size:16px;">${targetUsername}</h2>
+            </div>
+        </div>
+        <div style="padding:15px 16px;">
+            <div style="display:flex; align-items:center; justify-content:space-between;">
+                <div class="avatar" style="width:80px; height:80px; font-size:30px; ${dpStyle}">${dp ? '' : targetUsername.charAt(0).toUpperCase()}</div>
+                <div style="display:flex; gap:15px; text-align:center; flex:1; justify-content:space-around; margin-left:15px;">
+                    <div><b>${postCount}</b><p style="font-size:12px; color:#aaa;">Posts</p></div>
+                    <div style="cursor:pointer;" onclick="openFollowersModal('followers', '${targetUsername}')"><b>${followersCount}</b><p style="font-size:12px; color:#aaa;">Followers</p></div>
+                    <div style="cursor:pointer;" onclick="openFollowersModal('following', '${targetUsername}')"><b>${followingCount}</b><p style="font-size:12px; color:#aaa;">Following</p></div>
+                </div>
+            </div>
+            <div style="margin-top:12px;">
+                <b style="font-size:14px;">${targetUsername}</b>
+                <p style="font-size:13px; color:#ddd; margin-top:2px;">${targetBio}</p>
+            </div>
+            <div style="display:flex; gap:8px; margin-top:15px;">
+                <button id="dynamic-follow-btn" onclick="toggleFollowUser('${targetUsername}')" style="flex:1; background:${isFollowing ? '#262626' : '#0095f6'}; color:#fff; border:none; padding:8px; border-radius:6px; font-weight:600; font-size:13px; cursor:pointer;">${isFollowing ? 'Following' : 'Follow'}</button>
+                <button onclick="switchView('chat-container'); setTimeout(() => openChatWindow('${targetUsername}'), 200);" style="flex:1; background:#262626; color:#fff; border:none; padding:8px; border-radius:6px; font-weight:600; font-size:13px; cursor:pointer;">Message</button>
+            </div>
+        </div>
+        <div style="border-top:1px solid #262626; margin-top:15px; padding:20px; text-align:center; color:#777; font-size:13px;">
+            User Posts Grid
+        </div>
+    `;
+};
+
+// 3. Follow / Unfollow logic for other profiles
+window.toggleFollowUser = async function(targetUsername) {
+    const myName = localStorage.getItem('currentUsername');
+    const btn = document.getElementById('dynamic-follow-btn');
+    if (!window.supabaseClient || !btn) return;
+
+    if (btn.textContent === 'Follow') {
+        const { error } = await window.supabaseClient.from('follows').insert([{ follower: myName, following: targetUsername }]);
+        if (!error) {
+            btn.textContent = 'Following';
+            btn.style.background = '#262626';
+        }
+    } else {
+        const { error } = await window.supabaseClient.from('follows').delete().eq('follower', myName).eq('following', targetUsername);
+        if (!error) {
+            btn.textContent = 'Follow';
+            btn.style.background = '#0095f6';
+        }
+    }
+};
+
+// 4. Clickable usernames across feed/chats/search to open profiles
+document.addEventListener('click', (e) => {
+    const target = e.target.closest('[data-username], .username-link, .chat-user-row');
+    if (target) {
+        const username = target.getAttribute('data-username') || target.querySelector('b')?.textContent;
+        const myName = localStorage.getItem('currentUsername');
+        if (username && username !== myName && !e.target.closest('button') && !e.target.closest('input')) {
+            openUserProfile(username.trim());
+        }
+    }
+});
+
+// 5. Continuous check to render avatars live
+setInterval(() => {
+    if (typeof window.renderAllAvatarsOnScreen === 'function') {
+        window.renderAllAvatarsOnScreen();
+    }
+}, 1000);
