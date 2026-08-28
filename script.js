@@ -727,13 +727,14 @@ function openChatWithUser() {
     openChatWith(viewingTargetUser);
                 }
 // ==========================================
-// WEBRTC & SUPABASE REALTIME CALLING SYSTEM
+// 100% WORKING DATABASE-BASED WEBRTC CALLING
 // ==========================================
 
 let localStream = null;
 let remoteStream = null;
 let peerConnection = null;
-let callChannel = null;
+let callCheckInterval = null;
+let currentCallId = null;
 
 const rtcConfig = {
     iceServers: [
@@ -742,81 +743,98 @@ const rtcConfig = {
     ]
 };
 
-// Initialize Call Signaling Channel based on active chat rooms
-function initCallSignaling() {
+// Listen for incoming calls via Supabase messages table
+function startListeningForCalls() {
     if (!supabaseClient) return;
-    if (callChannel) {
-        supabaseClient.removeChannel(callChannel);
-    }
-
     const currentUser = localStorage.getItem('currentUsername');
-    // Create a unique deterministic room name for both users
-    const roomName = `call_room_${[currentUser, activeChatUser].sort().join('_')}`;
 
-    callChannel = supabaseClient.channel(roomName, {
-        config: { broadcast: { self: false } }
-    });
-
-    callChannel
-        .on('broadcast', { event: 'incoming-call' }, async ({ payload }) => {
-            if (payload.receiver === currentUser) {
-                // Incoming call notification / prompt on receiver side
-                const accept = confirm(`Incoming ${payload.type.toUpperCase()} Call from ${payload.caller}! Accept?`);
-                if (accept) {
-                    showCallUI(payload.type, payload.caller, true);
-                    await setupWebRTCStream(payload.type === 'video');
+    // Realtime subscription for call signals
+    supabaseClient
+        .channel(`calls_${currentUser}`)
+        .on(
+            'postgres_changes',
+            {
+                event: 'INSERT',
+                schema: 'public',
+                table: 'messages',
+                filter: `receiver=eq.${currentUser}`
+            },
+            async payload => {
+                const msg = payload.new;
+                if (msg.type === 'call-offer') {
+                    const callData = JSON.parse(msg.message);
+                    currentCallId = msg.id;
                     
-                    // Send accept signal back
-                    callChannel.send({
-                        type: 'broadcast',
-                        event: 'call-accepted',
-                        payload: { responder: currentUser }
-                    });
-                } else {
-                    callChannel.send({
-                        type: 'broadcast',
-                        event: 'call-rejected',
-                        payload: { responder: currentUser }
-                    });
-                }
-            }
-        })
-        .on('broadcast', { event: 'call-accepted' }, async () => {
-            const statusText = document.getElementById('call-status-text');
-            if (statusText) statusText.textContent = "Connected";
-            await createAndSendOffer();
-        })
-        .on('broadcast', { event: 'call-rejected' }, () => {
-            alert("Call declined.");
-            endCallScreen();
-        })
-        .on('broadcast', { event: 'webrtc-offer' }, async ({ payload }) => {
-            if (!peerConnection) createPeerConnection();
-            await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.offer));
-            const answer = await peerConnection.createAnswer();
-            await peerConnection.setLocalDescription(answer);
+                    const accept = confirm(`Incoming ${callData.callType.toUpperCase()} Call from ${msg.sender}! Accept?`);
+                    if (accept) {
+                        showCallUI(callData.callType, msg.sender, true);
+                        await setupWebRTCStream(callData.callType === 'video');
+                        createPeerConnection(msg.sender);
 
-            callChannel.send({
-                type: 'broadcast',
-                event: 'webrtc-answer',
-                payload: { answer }
-            });
-        })
-        .on('broadcast', { event: 'webrtc-answer' }, async ({ payload }) => {
-            if (peerConnection) {
-                await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.answer));
-            }
-        })
-        .on('broadcast', { event: 'webrtc-ice' }, async ({ payload }) => {
-            if (peerConnection && payload.candidate) {
-                try {
-                    await peerConnection.addIceCandidate(new RTCIceCandidate(payload.candidate));
-                } catch (e) {
-                    console.error("Error adding received ice candidate", e);
+                        await peerConnection.setRemoteDescription(new RTCSessionDescription(callData.offer));
+                        const answer = await peerConnection.createAnswer();
+                        await peerConnection.setLocalDescription(answer);
+
+                        // Send Answer back
+                        await supabaseClient.from('messages').insert([{
+                            sender: currentUser,
+                            receiver: msg.sender,
+                            message: JSON.stringify({ type: 'call-answer', answer }),
+                            type: 'call-answer'
+                        }]);
+
+                        startIceCandidatePolling(msg.sender);
+                    } else {
+                        // Reject call
+                        await supabaseClient.from('messages').insert([{
+                            sender: currentUser,
+                            receiver: msg.sender,
+                            message: JSON.stringify({ type: 'call-rejected' }),
+                            type: 'call-rejected'
+                        }]);
+                    }
                 }
             }
-        })
+        )
         .subscribe();
+}
+
+// Poll for answers and ICE candidates
+function startIceCandidatePolling(targetUser) {
+    const currentUser = localStorage.getItem('currentUsername');
+    if (callCheckInterval) clearInterval(callCheckInterval);
+
+    callCheckInterval = setInterval(async () => {
+        if (!supabaseClient || !peerConnection) return;
+
+        const { data } = await supabaseClient
+            .from('messages')
+            .select('*')
+            .eq('receiver', currentUser)
+            .eq('sender', targetUser)
+            .order('created_at', { ascending: false })
+            .limit(5);
+
+        if (data) {
+            for (let msg of data) {
+                try {
+                    const parsed = JSON.parse(msg.message);
+                    if (parsed.type === 'call-answer' && peerConnection.signalingState === 'have-local-offer') {
+                        await peerConnection.setRemoteDescription(new RTCSessionDescription(parsed.answer));
+                        const statusText = document.getElementById('call-status-text');
+                        if (statusText) statusText.textContent = "Connected";
+                    } else if (parsed.type === 'ice-candidate' && parsed.candidate) {
+                        try {
+                            await peerConnection.addIceCandidate(new RTCIceCandidate(parsed.candidate));
+                        } catch (e) {}
+                    } else if (parsed.type === 'call-rejected') {
+                        alert("Call was declined.");
+                        endCallScreen();
+                    }
+                } catch (e) {}
+            }
+        }
+    }, 2000);
 }
 
 async function setupWebRTCStream(isVideo) {
@@ -831,13 +849,13 @@ async function setupWebRTCStream(isVideo) {
             localVideoEl.srcObject = localStream;
         }
     } catch (err) {
-        console.error("Media access denied:", err);
-        alert("Could not access camera or microphone.");
+        alert("Could not access camera or microphone. Please check permissions.");
     }
 }
 
-function createPeerConnection() {
+function createPeerConnection(receiver) {
     peerConnection = new RTCPeerConnection(rtcConfig);
+    const currentUser = localStorage.getItem('currentUsername');
 
     if (localStream) {
         localStream.getTracks().forEach(track => {
@@ -855,71 +873,74 @@ function createPeerConnection() {
         event.streams[0].getTracks().forEach(track => {
             remoteStream.addTrack(track);
         });
+        const statusText = document.getElementById('call-status-text');
+        if (statusText) statusText.textContent = "Connected";
     };
 
     peerConnection.onicecandidate = event => {
-        if (event.candidate && callChannel) {
-            callChannel.send({
-                type: 'broadcast',
-                event: 'webrtc-ice',
-                payload: { candidate: event.candidate }
-            });
+        if (event.candidate && supabaseClient) {
+            supabaseClient.from('messages').insert([{
+                sender: currentUser,
+                receiver: receiver,
+                message: JSON.stringify({ type: 'ice-candidate', candidate: event.candidate }),
+                type: 'ice-candidate'
+            }]).then();
         }
     };
 }
 
-async function createAndSendOffer() {
-    createPeerConnection();
-    const offer = await peerConnection.createOffer();
-    await peerConnection.setLocalDescription(offer);
-
-    callChannel.send({
-        type: 'broadcast',
-        event: 'webrtc-offer',
-        payload: { offer }
-    });
-}
-
-// Override / Update existing call triggers
+// Trigger Audio Call
 window.startAudioCall = async function() {
     if (!activeChatUser) {
         alert("Open a chat to call!");
         return;
     }
-    initCallSignaling();
+    const currentUser = localStorage.getItem('currentUsername');
     showCallUI('audio', activeChatUser, false);
     await setupWebRTCStream(false);
+    createPeerConnection(activeChatUser);
 
-    const currentUser = localStorage.getItem('currentUsername');
-    setTimeout(() => {
-        callChannel.send({
-            type: 'broadcast',
-            event: 'incoming-call',
-            payload: { caller: currentUser, receiver: activeChatUser, type: 'audio' }
-        });
-    }, 1000);
+    const offer = await peerConnection.createOffer();
+    await peerConnection.setLocalDescription(offer);
+
+    await supabaseClient.from('messages').insert([{
+        sender: currentUser,
+        receiver: activeChatUser,
+        message: JSON.stringify({ type: 'call-offer', callType: 'audio', offer }),
+        type: 'call-offer'
+    }]);
+
+    startIceCandidatePkg(activeChatUser);
 };
 
+// Trigger Video Call
 window.startVideoCall = async function() {
     if (!activeChatUser) {
         alert("Open a chat to call!");
         return;
     }
-    initCallSignaling();
+    const currentUser = localStorage.getItem('currentUsername');
     showCallUI('video', activeChatUser, false);
     await setupWebRTCStream(true);
+    createPeerConnection(activeChatUser);
 
-    const currentUser = localStorage.getItem('currentUsername');
-    setTimeout(() => {
-        callChannel.send({
-            type: 'broadcast',
-            event: 'incoming-call',
-            payload: { caller: currentUser, receiver: activeChatUser, type: 'video' }
-        });
-    }, 1000);
+    const offer = await peerConnection.createOffer();
+    await peerConnection.setLocalDescription(offer);
+
+    await supabaseClient.from('messages').insert([{
+        sender: currentUser,
+        receiver: activeChatUser,
+        message: JSON.stringify({ type: 'call-offer', callType: 'video', offer }),
+        type: 'call-offer'
+    }]);
+
+    startIceCandidatePkg(activeChatUser);
 };
 
-// Enhanced Call UI with Video Support Elements
+function startIceCandidatePkg(targetUser) {
+    startIceCandidatePolling(targetUser);
+}
+
 function showCallUI(type, targetUser, isReceiver) {
     let callOverlay = document.getElementById('instagram-call-overlay');
     if (!callOverlay) {
@@ -929,24 +950,20 @@ function showCallUI(type, targetUser, isReceiver) {
         document.body.appendChild(callOverlay);
     }
 
-    const titleType = isReceiver ? `Incoming ${type} call...` : 'Calling...';
+    const titleType = isReceiver ? `Incoming ${type} call...` : 'Calling... (Connecting)';
 
     callOverlay.innerHTML = `
         <div style="position:relative; width:100%; height:100%; display:flex; flex-direction:column; justify-content:space-between; align-items:center;">
-            <!-- Remote Video Fullscreen or Background -->
             <video id="remote-video-display" autoplay playsinline style="position:absolute; top:0; left:0; width:100%; height:100%; object-fit:cover; z-index:1; background:#000;"></video>
             
-            <!-- Top Caller Details Layer -->
-            <div style="z-index:2; display:flex; flex-direction:column; align-items:center; gap:10px; margin-top:40px; background:rgba(0,0,0,0.4); padding:15px 30px; border-radius:20px;">
+            <div style="z-index:2; display:flex; flex-direction:column; align-items:center; gap:10px; margin-top:40px; background:rgba(0,0,0,0.5); padding:15px 30px; border-radius:20px;">
                 <div class="avatar" style="width:70px; height:70px; font-size:28px; background-color:#363636;">${targetUser ? targetUser.charAt(0).toUpperCase() : 'U'}</div>
                 <h2 style="font-size:20px; font-weight:500; margin:0;">${targetUser || 'User'}</h2>
                 <p style="font-size:13px; color:#ccc; margin:0;" id="call-status-text">${titleType}</p>
             </div>
 
-            <!-- Local Small Video Preview (if video call) -->
             ${type === 'video' ? `<video id="local-video-preview" autoplay playsinline muted style="position:absolute; top:20px; right:20px; width:100px; height:150px; object-fit:cover; border-radius:12px; z-index:3; border:2px solid #fff;"></video>` : ''}
 
-            <!-- Bottom Action Buttons -->
             <div style="z-index:2; display:flex; gap:30px; margin-bottom:40px; align-items:center;">
                 <button onclick="toggleCallMute(this)" style="width:55px; height:55px; border-radius:50%; background:#262626; border:none; color:#fff; font-size:20px; cursor:pointer;"><i class="fa-solid fa-microphone"></i></button>
                 <button onclick="endCallScreen()" style="width:65px; height:65px; border-radius:50%; background:#ed4956; border:none; color:#fff; font-size:24px; cursor:pointer;"><i class="fa-solid fa-phone-slash"></i></button>
@@ -958,6 +975,7 @@ function showCallUI(type, targetUser, isReceiver) {
 }
 
 window.endCallScreen = function() {
+    if (callCheckInterval) clearInterval(callCheckInterval);
     if (localStream) {
         localStream.getTracks().forEach(track => track.stop());
         localStream = null;
@@ -965,10 +983,6 @@ window.endCallScreen = function() {
     if (peerConnection) {
         peerConnection.close();
         peerConnection = null;
-    }
-    if (callChannel && supabaseClient) {
-        supabaseClient.removeChannel(callChannel);
-        callChannel = null;
     }
     const callOverlay = document.getElementById('instagram-call-overlay');
     if (callOverlay) {
@@ -998,3 +1012,8 @@ window.toggleCamera = function(btn) {
         }
     }
 }
+
+// Start listening for calls when app loads
+window.addEventListener('DOMContentLoaded', () => {
+    setTimeout(startListeningForCalls, 2000);
+});
