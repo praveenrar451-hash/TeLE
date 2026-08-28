@@ -9,11 +9,17 @@ if (window.supabase) {
 
 window.addEventListener('DOMContentLoaded', () => {
     const activeUser = localStorage.getItem('currentUsername');
+    const authEl = document.getElementById('auth-container');
+    const mainApp = document.getElementById('main-app-content');
+
     if (activeUser && activeUser.trim() !== "") {
-        // Agar user pehle se logged in hai, toh login container chhupao aur feed dikhao
-        document.getElementById('auth-container').classList.remove('active');
-        document.getElementById('auth-container').style.display = 'none';
-        document.getElementById('main-app-content').style.display = 'flex';
+        if (authEl) {
+            authEl.classList.remove('active');
+            authEl.style.display = 'none';
+        }
+        if (mainApp) {
+            mainApp.style.display = 'flex';
+        }
         
         const lastView = localStorage.getItem('activeAppView') || 'insta-feed-container';
         switchView(lastView);
@@ -21,32 +27,33 @@ window.addEventListener('DOMContentLoaded', () => {
         loadFeedPosts();
         updateUserOnlineStatus(activeUser, true);
     } else {
-        // Agar logged in nahi hai, toh login page dikhao
-        document.getElementById('auth-container').classList.add('active');
-        document.getElementById('auth-container').style.display = 'flex';
-        document.getElementById('main-app-content').style.display = 'none';
+        if (authEl) {
+            authEl.classList.add('active');
+            authEl.style.display = 'flex';
+        }
+        if (mainApp) {
+            mainApp.style.display = 'none';
+        }
     }
 
     window.addEventListener('beforeunload', () => {
-        const activeUser = localStorage.getItem('currentUsername');
-        if (activeUser) {
-            updateUserOnlineStatus(activeUser, false);
+        const currentUser = localStorage.getItem('currentUsername');
+        if (currentUser) {
+            updateUserOnlineStatus(currentUser, false);
         }
     });
 });
 
- async function handleAuthLogin() {
+async function handleAuthLogin() {
     const usernameInput = document.getElementById('auth-username').value.trim();
     if (!usernameInput) {
         alert("Please enter a username");
         return;
     }
 
-    // Save locally immediately so UI doesn't block
     localStorage.setItem('currentUsername', usernameInput);
     saveAccountToList(usernameInput);
 
-    // Force hide login, show app
     const authEl = document.getElementById('auth-container');
     if (authEl) {
         authEl.classList.remove('active');
@@ -62,7 +69,6 @@ window.addEventListener('DOMContentLoaded', () => {
     loadUserData(usernameInput);
     loadFeedPosts();
 
-    // Background sync with Supabase without blocking UI
     if (supabaseClient) {
         try {
             const { data } = await supabaseClient.from('users').select('*').eq('username', usernameInput);
@@ -75,7 +81,7 @@ window.addEventListener('DOMContentLoaded', () => {
             console.log("Supabase sync background error:", err);
         }
     }
- }
+}
 
 async function updateUserOnlineStatus(username, status) {
     if (!supabaseClient || !username) return;
@@ -95,6 +101,7 @@ function openSwitchAccountModal() {
     const accounts = JSON.parse(localStorage.getItem('savedAccounts') || '[]');
     const current = localStorage.getItem('currentUsername');
 
+    if (!listEl) return;
     listEl.innerHTML = '';
     if (accounts.length === 0) {
         listEl.innerHTML = `<div style="color:#8e8e8e; font-size:13px; text-align:center;">No saved accounts</div>`;
@@ -123,24 +130,6 @@ function switchToAccount(username) {
     const prevUser = localStorage.getItem('currentUsername');
     if (prevUser) updateUserOnlineStatus(prevUser, false);
     localStorage.setItem('currentUsername', username);
-    location.reload();
-}
-
-async function addAndSwitchAccount() {
-    const inputAcc = document.getElementById('new-switch-username').value.trim();
-    if (!inputAcc) return;
-    
-    if (supabaseClient) {
-        const { data } = await supabaseClient.from('users').select('*').eq('username', inputAcc);
-        if (!data || data.length === 0) {
-            await supabaseClient.from('users').insert([{ username: inputAcc, bio: 'Digital Creator', avatar_url: '', is_online: true }]);
-        } else {
-            await supabaseClient.from('users').update({ is_online: true }).eq('username', inputAcc);
-        }
-    }
-    
-    saveAccountToList(inputAcc);
-    localStorage.setItem('currentUsername', inputAcc);
     location.reload();
 }
 
@@ -334,31 +323,6 @@ async function toggleSavePost(postId, iconEl) {
     }
 }
 
-async function loadSavedPostsGrid() {
-    const gridEl = document.getElementById('my-profile-grid');
-    const currentUser = localStorage.getItem('currentUsername');
-    if (!supabaseClient || !gridEl) return;
-
-    const { data: savedData } = await supabaseClient.from('saved_posts').select('post_id').eq('username', currentUser);
-    gridEl.innerHTML = '';
-
-    if (savedData && savedData.length > 0) {
-        const postIds = savedData.map(s => s.post_id);
-        const { data: posts } = await supabaseClient.from('posts').select('*').in('id', postIds);
-        
-        if (posts && posts.length > 0) {
-            posts.forEach(post => {
-                const cell = document.createElement('div');
-                cell.style.cssText = "aspect-ratio: 1/1; background-size: cover; background-position: center;";
-                cell.style.backgroundImage = `url('${post.image_url}')`;
-                gridEl.appendChild(cell);
-            });
-            return;
-        }
-    }
-    gridEl.innerHTML = `<div style="grid-column: span 3; text-align:center; padding:30px; color:#8e8e8e; font-size:13px;">No saved posts</div>`;
-}
-
 async function loadReelsFeed() {
     const reelsContainer = document.getElementById('reels-container');
     if (!reelsContainer) return;
@@ -517,98 +481,11 @@ async function loadUserPostsGrid(username, gridId) {
     }
 }
 
-async function openFollowersList(username) {
-    createFollowModalDOM();
-    const modal = document.getElementById('follow-list-modal');
-    document.getElementById('follow-modal-title').textContent = "Followers";
-    modal.style.display = 'flex';
-    const listContainer = document.getElementById('follow-modal-users-list');
-    listContainer.innerHTML = '<div style="text-align:center; color:#8e8e8e; padding:20px;">Loading...</div>';
-
-    if (!supabaseClient) return;
-    const { data } = await supabaseClient.from('follows').select('follower').eq('following', username);
-    listContainer.innerHTML = '';
-
-    if (data && data.length > 0) {
-        for (let item of data) {
-            const { data: uData } = await supabaseClient.from('users').select('username, bio, avatar_url').eq('username', item.follower).single();
-            if (uData) appendUserRowToModal(uData, listContainer);
-        }
-    } else {
-        listContainer.innerHTML = '<div style="text-align:center; color:#8e8e8e; padding:20px;">No followers yet</div>';
-    }
-}
-
-async function openFollowingList(username) {
-    createFollowModalDOM();
-    const modal = document.getElementById('follow-list-modal');
-    document.getElementById('follow-modal-title').textContent = "Following";
-    modal.style.display = 'flex';
-    const listContainer = document.getElementById('follow-modal-users-list');
-    listContainer.innerHTML = '<div style="text-align:center; color:#8e8e8e; padding:20px;">Loading...</div>';
-
-    if (!supabaseClient) return;
-    const { data } = await supabaseClient.from('follows').select('following').eq('follower', username);
-    listContainer.innerHTML = '';
-
-    if (data && data.length > 0) {
-        for (let item of data) {
-            const { data: uData } = await supabaseClient.from('users').select('username, bio, avatar_url').eq('username', item.following).single();
-            if (uData) appendUserRowToModal(uData, listContainer);
-        }
-    } else {
-        listContainer.innerHTML = '<div style="text-align:center; color:#8e8e8e; padding:20px;">Not following anyone</div>';
-    }
-}
-
-function createFollowModalDOM() {
-    if (document.getElementById('follow-list-modal')) return;
-    const div = document.createElement('div');
-    div.id = 'follow-list-modal';
-    div.style.cssText = "display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:1000; justify-content:center; align-items:center;";
-    div.innerHTML = `
-        <div style="background:#262626; width:90%; max-width:400px; border-radius:12px; overflow:hidden; display:flex; flex-direction:column; max-height:80vh;">
-            <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 16px; border-bottom:1px solid #363636;">
-                <b id="follow-modal-title" style="font-size:16px; color:#fff;">Users</b>
-                <i class="fa-solid fa-xmark" style="cursor:pointer; font-size:18px; color:#fff;" onclick="closeFollowModal()"></i>
-            </div>
-            <div id="follow-modal-users-list" style="overflow-y:auto; padding:10px; display:flex; flex-direction:column; gap:10px;"></div>
-        </div>
-    `;
-    document.body.appendChild(div);
-}
-
-function appendUserRowToModal(user, container) {
-    const avatarStyle = user.avatar_url ? `background-image: url('${user.avatar_url}');` : '';
-    const row = document.createElement('div');
-    row.style.cssText = "display:flex; align-items:center; justify-content:space-between; padding:8px; cursor:pointer;";
-    row.onclick = () => {
-        closeFollowModal();
-        viewUserProfile(user.username);
-    };
-    row.innerHTML = `
-        <div style="display:flex; align-items:center; gap:10px;">
-            <div class="avatar" style="width:36px; height:36px; font-size:14px; ${avatarStyle}">${user.avatar_url ? '' : user.username.charAt(0).toUpperCase()}</div>
-            <div>
-                <b style="font-size:14px; display:block; color:#fff;">${user.username}</b>
-                <span style="font-size:12px; color:#8e8e8e;">${user.bio || 'Digital Creator'}</span>
-            </div>
-        </div>
-    `;
-    container.appendChild(row);
-}
-
-function closeFollowModal() {
-    const modal = document.getElementById('follow-list-modal');
-    if (modal) modal.style.display = 'none';
-}
-
 // CHAT LIST WITH BUILT-IN SEARCH (Tapping opens Chat Room directly)
 async function openChatList() {
     switchView('chat-container');
     const chatContainer = document.getElementById('chat-container');
     
-    // Ensure chat container structure includes search bar
     chatContainer.innerHTML = `
         <div class="top-bar">
             <i class="fa-solid fa-arrow-left" style="cursor:pointer;" onclick="switchView('insta-feed-container')"></i>
@@ -774,20 +651,6 @@ function setupRealtimeChat() {
 
 async function sendChatMessage() {
     const inputEl = document.getElementById('chatroom-input');
-    const text = inputEl.value.trim();
-    const currentUser = localStorage.getItem('currentUsername');
-
-    if (!text || !supabaseClient) return;
-
-    inputEl.value = '';
-    await supabaseClient.from('messages'].insert([
-        { sender: currentUser, receiver: activeChatUser, message: text, type: 'text', is_seen: false }
-    ]);
-}
-
-// Instant message send fix wrapper
-async function sendChatMessage() {
-    const inputEl = document.getElementById('chatroom-input');
     if (!inputEl) return;
     const text = inputEl.value.trim();
     const currentUser = localStorage.getItem('currentUsername');
@@ -820,52 +683,6 @@ async function sendChatPhoto(event) {
         }
     };
     reader.readAsDataURL(file);
-}
-
-let mediaRecorder = null;
-let audioChunks = [];
-
-async function recordVoiceNote() {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        alert("Audio recording not supported");
-        return;
-    }
-
-    if (!mediaRecorder || mediaRecorder.state === "inactive") {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            mediaRecorder = new MediaRecorder(stream);
-            audioChunks = [];
-
-            mediaRecorder.ondataavailable = event => audioChunks.push(event.data);
-            mediaRecorder.onstop = async () => {
-                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                const reader = new FileReader();
-                reader.readAsDataURL(audioBlob);
-                reader.onloadend = async function() {
-                    const base64Audio = reader.result;
-                    const currentUser = localStorage.getItem('currentUsername');
-                    if (supabaseClient) {
-                        const { data, error } = await supabaseClient.from('messages').insert([
-                            { sender: currentUser, receiver: activeChatUser, message: base64Audio, type: 'audio', is_seen: false }
-                        ]).select();
-
-                        if (!error && data && data.length > 0) {
-                            appendMessageBubble(data[0], currentUser);
-                        }
-                    }
-                };
-            };
-
-            mediaRecorder.start();
-            alert("Recording started... Tap microphone icon again to stop and send.");
-        } catch (err) {
-            alert("Microphone permission denied.");
-        }
-    } else if (mediaRecorder.state === "recording") {
-        mediaRecorder.stop();
-        alert("Voice note sent!");
-    }
 }
 
 // INSTAGRAM-STYLE CALLING UI OVERLAY
@@ -910,7 +727,6 @@ function endCallScreen() {
 
 function toggleCallMute(btn) {
     const isMuted = btn.style.background === 'rgb(54, 54, 54)';
-    // Toggle style state
     btn.style.background = isMuted ? '#fff' : '#262626';
     btn.style.color = isMuted ? '#000' : '#fff';
 }
