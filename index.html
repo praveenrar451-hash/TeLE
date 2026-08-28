@@ -96,12 +96,12 @@
             </div>
         </div>
 
-    <!-- 5. PROFILE VIEW -->
+    <!-- 5. PROFILE VIEW (Complete with Pencil Icon & All Features) -->
 <div id="profile-container" class="app-view">
     <div class="top-header">
         <h2 id="profile-display-name">username</h2>
         <div style="display: flex; gap: 15px; align-items: center; font-size: 20px;">
-            <i class="fa-solid fa-gear" onclick="alert('Settings')" style="cursor:pointer; font-size: 18px;"></i>
+            <i class="fa-solid fa-gear" onclick="alert('Settings & Privacy')" style="cursor:pointer; font-size: 18px;"></i>
             <i class="fa-solid fa-right-from-bracket" onclick="handleLogout()" style="cursor:pointer; color:#ed4956; font-size: 18px;"></i>
         </div>
     </div>
@@ -109,11 +109,18 @@
     <!-- Profile Header Info -->
     <div style="padding: 15px 16px;">
         <div style="display: flex; align-items: center; justify-content: space-between;">
-            <!-- Profile Picture Clickable for Upload/URL -->
-            <div id="my-profile-avatar" class="avatar" style="width: 80px; height: 80px; font-size: 30px; cursor: pointer;" onclick="changeProfilePicture()" title="Click to change profile picture">
-                U
+            
+            <!-- Profile Picture with Pencil/Camera Icon & File Picker -->
+            <div style="position: relative; width: 80px; height: 80px;">
+                <div id="my-profile-avatar" class="avatar" style="width: 80px; height: 80px; font-size: 30px;">U</div>
+                <div onclick="document.getElementById('hidden-file-input').click()" style="position: absolute; bottom: 0; right: 0; background: #0095f6; color: #fff; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; cursor: pointer; border: 2px solid #000;" title="Change Profile Picture">
+                    <i class="fa-solid fa-pencil"></i>
+                </div>
+                <input type="file" id="hidden-file-input" accept="image/*" style="display: none;" onchange="handleImageCropSelection(event)">
             </div>
-            <div style="display: flex; gap: 20px; text-align: center; flex: 1; justify-content: space-around; margin-left: 15px;">
+
+            <!-- Stats Bar -->
+            <div id="profile-stats-bar" style="display: flex; gap: 20px; text-align: center; flex: 1; justify-content: space-around; margin-left: 15px;">
                 <div>
                     <b id="profile-posts-count" style="font-size: 16px;">0</b>
                     <p style="font-size: 12px; color: #aaa;">Posts</p>
@@ -135,25 +142,24 @@
             <p id="profile-bio-text" style="font-size: 13px; color: #ddd; margin-top: 2px;">Building InstaTelegram 🚀</p>
         </div>
 
-        <!-- Action Buttons -->
+        <!-- Profile Action Buttons -->
         <div style="display: flex; gap: 8px; margin-top: 15px;">
             <button onclick="editProfileBio()" style="flex: 1; background: #262626; color: #fff; border: none; padding: 7px; border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer;">Edit Profile</button>
-            <button onclick="alert('Profile link copied!')" style="flex: 1; background: #262626; color: #fff; border: none; padding: 7px; border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer;">Share Profile</button>
+            <button onclick="shareProfileLink()" style="flex: 1; background: #262626; color: #fff; border: none; padding: 7px; border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer;">Share Profile</button>
         </div>
     </div>
 
-    <!-- Profile Tabs -->
+    <!-- Profile Tabs (Posts & Saved) -->
     <div style="display: flex; border-top: 1px solid #262626; border-bottom: 1px solid #262626; margin-top: 10px;">
         <div id="tab-posts-btn" onclick="switchProfileTab('posts')" style="flex: 1; text-align: center; padding: 10px; border-bottom: 2px solid #fff; font-size: 16px; cursor: pointer;"><i class="fa-solid fa-table-cells"></i></div>
         <div id="tab-saved-btn" onclick="switchProfileTab('saved')" style="flex: 1; text-align: center; padding: 10px; color: #777; font-size: 16px; cursor: pointer;"><i class="fa-solid fa-bookmark"></i></div>
     </div>
 
-    <!-- Grid Area -->
+    <!-- User Grid Posts Area -->
     <div id="my-profile-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; background: #000; flex: 1;">
-        <!-- Posts Grid -->
+        <!-- Posts will load here -->
     </div>
 </div>
-
         <!-- INSTAGRAM BOTTOM NAVIGATION BAR -->
         <div class="bottom-nav" id="main-bottom-nav">
             <i class="fa-solid fa-house" onclick="switchView('insta-feed-container')"></i>
