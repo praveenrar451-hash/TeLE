@@ -1,71 +1,76 @@
-// 1. Supabase Setup (Aapki Keys)
+// --- 1. SUPABASE INITIALIZATION ---
 const SUPABASE_URL = 'https://ydjbojsqeujahgqinfmk.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_jxLWxWU876psNuIx-P7cCw_NR9JHzyI';
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-const MASTER_PASS = '272009';
+const PASS_CODE = '272009';
 
-// 2. Navigation Function (Pura Control Iske Paas Hai)
-function changeScreen(viewId) {
-    console.log("Changing screen to:", viewId);
-    // Sab ko hide karo
-    document.querySelectorAll('.app-view').forEach(v => v.classList.remove('active'));
-    // Target ko show karo
-    const target = document.getElementById('view-' + viewId);
-    if(target) {
+// --- 2. NAVIGATION LOGIC ---
+function showScreen(screenId) {
+    // Sab views se 'active' class hatao
+    document.querySelectorAll('.app-view').forEach(view => {
+        view.classList.remove('active');
+    });
+    // Target view ko 'active' karo
+    const target = document.getElementById(screenId + '-view');
+    if (target) {
         target.classList.add('active');
     }
 }
 
-// 3. Login Button Click
-document.getElementById('login-btn').addEventListener('click', function() {
-    const user = document.getElementById('user-inp').value.trim();
-    const pass = document.getElementById('pass-inp').value.trim();
-    const error = document.getElementById('err-msg');
+// --- 3. LOGIN FUNCTION ---
+async function handleLogin() {
+    const userInp = document.getElementById('login-username');
+    const passInp = document.getElementById('login-password');
+    const errorMsg = document.getElementById('login-error');
 
-    console.log("Button Clicked! User:", user, "Pass:", pass);
+    const username = userInp.value.trim();
+    const password = passInp.value.trim();
 
-    if(user === "") {
-        error.textContent = "Enter username first!";
+    if (username === "") {
+        errorMsg.textContent = "Please enter a username.";
         return;
     }
 
-    if(pass === MASTER_PASS) {
-        // SUCCESS: Turant screen badlo
+    if (password === PASS_CODE) {
+        // Success: Storage mein save karo
         localStorage.setItem('isLoggedIn', 'true');
-        localStorage.setItem('username', user);
-        
-        alert("Login Successful! Moving to Home..."); // Test ke liye
-        changeScreen('home');
+        localStorage.setItem('currentUser', username);
 
-        // Database wala kaam login ke BAAD background mein hoga
-        syncUser(user);
+        // Turant Screen badlo
+        showScreen('home');
+
+        // Background mein Supabase par user register karo
+        try {
+            await supabase.from('users').upsert([{ username: username }]);
+        } catch (e) {
+            console.log("DB sync skipped or table missing.");
+        }
     } else {
-        error.textContent = "Wrong password!";
-    }
-});
-
-// 4. Background Database Sync
-async function syncUser(username) {
-    try {
-        await supabase.from('users').upsert([{ username: username }]);
-        console.log("Database updated!");
-    } catch(e) {
-        console.warn("DB table users not found, but it's okay!");
+        errorMsg.textContent = "Incorrect password. Please try again.";
+        passInp.value = "";
     }
 }
 
-// 5. Logout
-document.getElementById('logout-btn').onclick = () => {
-    localStorage.clear();
-    location.reload();
-};
+// --- 4. EVENT LISTENERS ---
+document.getElementById('login-btn').addEventListener('click', handleLogin);
 
-// 6. Check Session on Start
+// Login on 'Enter' key
+document.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+        const loginView = document.getElementById('login-view');
+        if (loginView.classList.contains('active')) {
+            handleLogin();
+        }
+    }
+});
+
+// --- 5. SESSION CHECK ON START ---
 window.onload = () => {
-    if(localStorage.getItem('isLoggedIn') === 'true') {
-        changeScreen('home');
+    const status = localStorage.getItem('isLoggedIn');
+    if (status === 'true') {
+        showScreen('home');
     } else {
-        changeScreen('login');
+        showScreen('login');
     }
 };
