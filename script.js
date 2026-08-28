@@ -1,108 +1,71 @@
-// 1. CONFIG
+// 1. Supabase Setup (Aapki Keys)
 const SUPABASE_URL = 'https://ydjbojsqeujahgqinfmk.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_jxLWxWU876psNuIx-P7cCw_NR9JHzyI';
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const MASTER_PASS = '272009';
 
-// 2. GUI NAVIGATION (Ye function page change karta hai)
-function goTo(viewId) {
-    console.log("Navigating to:", viewId);
-    
-    // Sab views hide karo
-    const views = document.querySelectorAll('.app-view');
-    views.forEach(v => {
-        v.classList.remove('active');
-        v.style.display = 'none'; 
-    });
-
-    // Target view dikhao
+// 2. Navigation Function (Pura Control Iske Paas Hai)
+function changeScreen(viewId) {
+    console.log("Changing screen to:", viewId);
+    // Sab ko hide karo
+    document.querySelectorAll('.app-view').forEach(v => v.classList.remove('active'));
+    // Target ko show karo
     const target = document.getElementById('view-' + viewId);
     if(target) {
         target.classList.add('active');
-        target.style.display = 'flex';
-    }
-
-    // Nav bar control
-    const nav = document.getElementById('nav-bar');
-    if(nav) {
-        nav.style.display = (viewId === 'login') ? 'none' : 'flex';
     }
 }
 
-// 3. LOGIN LOGIC (Instant Response)
-const loginBtn = document.getElementById('btn-login');
-if(loginBtn) {
-    loginBtn.onclick = async function() {
-        const user = document.getElementById('inp-user').value.trim();
-        const pass = document.getElementById('inp-pass').value.trim();
-        const errorBox = document.getElementById('msg-error');
+// 3. Login Button Click
+document.getElementById('login-btn').addEventListener('click', function() {
+    const user = document.getElementById('user-inp').value.trim();
+    const pass = document.getElementById('pass-inp').value.trim();
+    const error = document.getElementById('err-msg');
 
-        if(user === "") {
-            errorBox.textContent = "Enter a username";
-            return;
-        }
+    console.log("Button Clicked! User:", user, "Pass:", pass);
 
-        if(pass === MASTER_PASS) {
-            // SUCCESS: Turant aage badho
-            console.log("Login Success!");
-            localStorage.setItem('isLoggedIn', 'true');
-            localStorage.setItem('currentUser', user);
-            
-            goTo('home'); // Login Page Chhor kar Home par jao
+    if(user === "") {
+        error.textContent = "Enter username first!";
+        return;
+    }
 
-            // Ab background mein Supabase sync karo (Agar fail hua toh bhi fark nahi padega)
-            try {
-                await supabase.from('users').upsert([{ username: user }]);
-                loadFeed();
-            } catch(e) {
-                console.log("Supabase sync failed, but it's okay.");
-            }
-        } else {
-            errorBox.textContent = "Incorrect password.";
-        }
-    };
-}
+    if(pass === MASTER_PASS) {
+        // SUCCESS: Turant screen badlo
+        localStorage.setItem('isLoggedIn', 'true');
+        localStorage.setItem('username', user);
+        
+        alert("Login Successful! Moving to Home..."); // Test ke liye
+        changeScreen('home');
 
-// 4. LOGOUT
-const logoutBtn = document.getElementById('btn-logout');
-if(logoutBtn) {
-    logoutBtn.onclick = () => {
-        localStorage.clear();
-        location.reload();
-    };
-}
-
-// 5. APP STARTUP
-window.onload = () => {
-    if(localStorage.getItem('isLoggedIn') === 'true') {
-        goTo('home');
-        loadFeed();
+        // Database wala kaam login ke BAAD background mein hoga
+        syncUser(user);
     } else {
-        goTo('login');
+        error.textContent = "Wrong password!";
     }
+});
+
+// 4. Background Database Sync
+async function syncUser(username) {
+    try {
+        await supabase.from('users').upsert([{ username: username }]);
+        console.log("Database updated!");
+    } catch(e) {
+        console.warn("DB table users not found, but it's okay!");
+    }
+}
+
+// 5. Logout
+document.getElementById('logout-btn').onclick = () => {
+    localStorage.clear();
+    location.reload();
 };
 
-// Placeholder Feed Load
-async function loadFeed() {
-    const feed = document.getElementById('feed-container');
-    if(!feed) return;
-    feed.innerHTML = "<p style='padding:20px; text-align:center;'>Loading Feed...</p>";
-    
-    try {
-        const { data } = await supabase.from('posts').select('*').order('created_at', {ascending: false});
-        if(data && data.length > 0) {
-            feed.innerHTML = "";
-            data.forEach(p => {
-                feed.innerHTML += `<div style="border-bottom:1px solid #eee; padding-bottom:10px;">
-                    <p style="padding:10px;"><b>${p.username}</b></p>
-                    <img src="${p.image_url}" style="width:100%;">
-                </div>`;
-            });
-        } else {
-            feed.innerHTML = "<p style='padding:20px; text-align:center; color:gray;'>No posts yet.</p>";
-        }
-    } catch(e) {
-        feed.innerHTML = "<p style='padding:20px; text-align:center;'>Feed offline.</p>";
+// 6. Check Session on Start
+window.onload = () => {
+    if(localStorage.getItem('isLoggedIn') === 'true') {
+        changeScreen('home');
+    } else {
+        changeScreen('login');
     }
-}
+};
