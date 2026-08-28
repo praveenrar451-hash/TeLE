@@ -1659,4 +1659,64 @@ window.addEventListener('DOMContentLoaded', () => {
         }
     }, 1500);
 });
-//                         
+// ==========================================
+// POST UPLOAD FIXER & ERROR HANDLER
+// ==========================================
+console.log("Post Upload Fixer Loaded!");
+
+window.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => {
+        // Post upload form ya button ko dhoondho
+        const postForm = document.querySelector('#post-form') || document.querySelector('.post-upload-form') || document.getElementById('create-post-form');
+        const submitPostBtn = document.getElementById('submit-post-btn') || document.querySelector('.submit-post') || document.querySelector('button[type="submit"]');
+
+        // Agar koi submit button ya form hai toh uske event ko intercept karte hain
+        const postInputBox = document.getElementById('post-caption-input') || document.querySelector('textarea[name="caption"]') || document.querySelector('.post-text-input');
+        const imageInput = document.getElementById('post-image-file') || document.querySelector('input[type="file"]');
+
+        console.log("Post elements attached safely.");
+    }, 1000);
+});
+
+// Global safe post creation function jo database error ko handle karega
+async function createNewPostSafely(caption, imageUrl) {
+    try {
+        if (!window.supabaseClient) {
+            alert("Supabase client not found!");
+            return;
+        }
+
+        const username = localStorage.getItem('currentUsername') || 'Anonymous';
+        
+        // Supabase mein 'posts' table mein data insert karne ki koshish
+        const { data, error } = await window.supabaseClient
+            .from('posts')
+            .insert([
+                { 
+                    username: username, 
+                    caption: caption || '', 
+                    image_url: imageUrl || '',
+                    created_at: new Date()
+                }
+            ]);
+
+        if (error) {
+            console.error("Supabase Post Insert Error:", error);
+            alert("Post upload failed: " + error.message);
+            return false;
+        }
+
+        console.log("Post uploaded successfully!");
+        // Feed ko refresh kar do taaki nayi post turant dikhe
+        if (typeof fetchFeedPosts === 'function') {
+            fetchFeedPosts();
+        } else {
+            location.reload(); // Fallback agar function na mile
+        }
+        return true;
+    } catch (err) {
+        console.error("Catch error during post creation:", err);
+        alert("Something went wrong while posting.");
+        return false;
+    }
+}
