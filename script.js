@@ -1617,3 +1617,45 @@ document.querySelectorAll('.insta-nav i').forEach(icon => {
         }
     }, true); // Capture phase mein intercept karega
 });
+
+// ==========================================
+// CHAT MEMORY & INSTANT RESTORATION PATCH
+// ==========================================
+console.log("Chat Memory Patch Loaded Successfully!");
+
+// Chat list aur active chats ko memory mein store rakhne ke liye variable
+window.cachedChatHTML = null;
+
+// Chat page switch ko intercept karne ke liye
+const originalSwitchViewForChat = window.switchView;
+if (originalSwitchViewForChat) {
+    window.switchView = function(viewId, saveState = true) {
+        originalSwitchViewForChat(viewId, saveState);
+
+        // Agar user chat page ya messages container par ja raha hai
+        if (viewId === 'chat-container' || viewId === 'telegram-chat-section' || viewId === 'messages-page') {
+            const chatListArea = document.getElementById('chat-list-container') || document.getElementById('chat-users-list') || document.querySelector('.chat-list');
+            
+            // Agar pehle se HTML saved hai aur abhi area khali hai, toh turant wapas daal do
+            if (chatListArea && window.cachedChatHTML && chatListArea.children.length === 0) {
+                chatListArea.innerHTML = window.cachedChatHTML;
+                console.log("Chat list restored from memory instantly.");
+            }
+        }
+    };
+}
+
+// Jab bhi chat list load ho ya update ho, use memory mein save kar lo
+window.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => {
+        const chatListArea = document.getElementById('chat-list-container') || document.getElementById('chat-users-list') || document.querySelector('.chat-list');
+        if (chatListArea) {
+            const chatObserver = new MutationObserver(() => {
+                if (chatListArea.children.length > 0) {
+                    window.cachedChatHTML = chatListArea.innerHTML;
+                }
+            });
+            chatObserver.observe(chatListArea, { childList: true, subtree: true });
+        }
+    }, 1500);
+});
