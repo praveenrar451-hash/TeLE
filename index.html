@@ -3,461 +3,127 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>InstaTelegram Hub</title>
-    <!-- FontAwesome for Icons -->
+    <title>InstaTelegram</title>
+    <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Supabase Client Library -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-        body { background-color: #000; color: #fff; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
-        
-        /* App Container */
-        #app-container { width: 100%; max-width: 480px; height: 100vh; background: #000; display: flex; flex-direction: column; position: relative; overflow: hidden; border-left: 1px solid #262626; border-right: 1px solid #262626; }
-        @media(min-width: 481px) { #app-container { height: 90vh; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.8); } }
-
-        /* Views */
-        .app-view { display: none; flex: 1; flex-direction: column; overflow-y: auto; background: #000; height: calc(100vh - 55px); }
-        .app-view.active { display: flex; }
-
-        /* Authentication Screen (Instagram Style) */
-        #auth-container { display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 30px; height: 100%; background: #000; text-align: center; }
-        .insta-logo { font-family: 'Brush Script MT', cursive; font-size: 45px; margin-bottom: 30px; letter-spacing: 2px; }
-        .auth-input { width: 100%; padding: 12px; margin-bottom: 10px; background: #121212; border: 1px solid #262626; border-radius: 6px; color: #fff; font-size: 14px; outline: none; }
-        .auth-input:focus { border-color: #555; }
-        .auth-btn { width: 100%; padding: 12px; background: #0095f6; border: none; border-radius: 6px; color: #fff; font-weight: bold; font-size: 14px; cursor: pointer; margin-top: 10px; transition: background 0.2s; }
-        .auth-btn:hover { background: #1877f2; }
-        .google-btn { background: #fff; color: #000; display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 15px; }
-        .google-btn:hover { background: #e0e0e0; }
-        .auth-switch { margin-top: 20px; font-size: 13px; color: #aaa; cursor: pointer; }
-        .auth-switch span { color: #0095f6; font-weight: bold; }
-
-        /* Navigation Bar */
-        .bottom-nav { height: 55px; background: #000; border-top: 1px solid #262626; display: flex; justify-content: space-around; align-items: center; position: absolute; bottom: 0; width: 100%; z-index: 100; }
-        .bottom-nav i { font-size: 22px; cursor: pointer; color: #fff; }
-        .bottom-nav i:hover { color: #0095f6; }
-
-        /* Top Header */
-        .top-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid #262626; background: #000; position: sticky; top: 0; z-index: 10; }
-        .top-header h2 { font-size: 18px; font-weight: 700; }
-
-        /* Feed & Post Styles */
-        .post-card { background: #000; border-bottom: 1px solid #262626; margin-bottom: 15px; }
-        .post-header { display: flex; align-items: center; gap: 10px; padding: 10px 12px; }
-        .avatar { width: 32px; height: 32px; border-radius: 50%; background: #444; background-size: cover; background-position: center; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 13px; }
-        .post-img-container { width: 100%; max-height: 450px; background: #111; overflow: hidden; display: flex; justify-content: center; align-items: center; }
-        .post-img-container img { width: 100%; object-fit: cover; }
-        .post-actions { display: flex; gap: 15px; font-size: 22px; padding: 10px 12px 6px 12px; }
-        .post-actions i { cursor: pointer; }
-        .post-details { padding: 0 12px 12px 12px; font-size: 13px; }
-
-        /* Chat List & Window */
-        .chat-user-row { display: flex; align-items: center; gap: 12px; padding: 12px 15px; cursor: pointer; border-bottom: 1px solid #1a1a1a; }
-        .chat-user-row:hover { background: #111; }
-        #active-chat-window { display: none; flex-direction: column; height: 100%; background: #000; position: absolute; top: 0; left: 0; width: 100%; z-index: 200; }
-        .chat-messages-box { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
-        .chat-msg { max-width: 70%; padding: 10px 14px; border-radius: 12px; font-size: 13px; line-height: 1.4; }
-        .chat-msg.sent { background: #0084ff; align-self: flex-end; border-bottom-right-radius: 2px; }
-        .chat-msg.received { background: #262626; align-self: flex-start; border-bottom-left-radius: 2px; }
-        .chat-input-bar { display: flex; padding: 10px; background: #121212; border-top: 1px solid #262626; gap: 10px; align-items: center; }
-        .chat-input-bar input { flex: 1; background: transparent; border: none; color: #fff; font-size: 14px; outline: none; padding: 8px; }
-        .chat-input-bar button { background: #0095f6; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; font-weight: bold; cursor: pointer; }
-    </style>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<div id="app-container">
+    <div id="app-container">
 
-    <!-- 1. AUTHENTICATION VIEW (Instagram Style Login/Signup) -->
-    <div id="auth-container" class="app-view active">
-        <div class="insta-logo">InstaTelegram</div>
-        
-        <!-- Login Form -->
-        <div id="login-form-box" style="width: 100%;">
-            <input type="email" id="login-email" class="auth-input" placeholder="Phone number, username, or email">
-            <input type="password" id="login-password" class="auth-input" placeholder="Password">
-            <button class="auth-btn" onclick="handleLogin()">Log In</button>
-            <button class="auth-btn google-btn" onclick="handleGoogleLogin()"><i class="fa-brands fa-google"></i> Continue with Google</button>
-            <p class="auth-switch" onclick="toggleAuthMode(true)">Don't have an account? <span>Sign up</span></p>
-        </div>
-
-        <!-- Signup Form (Hidden by default) -->
-        <div id="signup-form-box" style="width: 100%; display: none;">
-            <input type="text" id="signup-username" class="auth-input" placeholder="Username">
-            <input type="email" id="signup-email" class="auth-input" placeholder="Email">
-            <input type="password" id="signup-password" class="auth-input" placeholder="Create Password">
-            <button class="auth-btn" onclick="handleSignup()">Sign Up</button>
-            <button class="auth-btn google-btn" onclick="handleGoogleLogin()"><i class="fa-brands fa-google"></i> Sign up with Google</button>
-            <p class="auth-switch" onclick="toggleAuthMode(false)">Have an account? <span>Log in</span></p>
-        </div>
-    </div>
-
-    <!-- 2. HOME FEED VIEW (Instagram Posts) -->
-    <div id="insta-feed-container" class="app-view">
-        <div class="top-header">
-            <h2>InstaTelegram</h2>
-            <div style="display: flex; gap: 15px; font-size: 20px;">
-                <i class="fa-regular fa-square-plus" onclick="openUploadModal()" style="cursor:pointer;"></i>
-                <i class="fa-brands fa-telegram-plane" onclick="switchView('chat-container')" style="cursor:pointer;"></i>
-            </div>
-        </div>
-        <div id="feed-posts-area" style="flex: 1; overflow-y: auto;">
-            <!-- Dynamic Posts will load here -->
-        </div>
-    </div>
-
-    <!-- 3. CHAT / MESSAGING VIEW (Telegram Style DMs) -->
-    <div id="chat-container" class="app-view">
-        <div class="top-header">
-            <i class="fa-solid fa-arrow-left" onclick="switchView('insta-feed-container')" style="cursor:pointer; font-size: 18px;"></i>
-            <h2 id="chat-header-title">Messages</h2>
-            <i class="fa-regular fa-pen-to-square"></i>
-        </div>
-        <div id="chat-users-list" style="flex: 1; overflow-y: auto;">
-            <!-- Chat Users will load here -->
-        </div>
-    </div>
-
-    <!-- Active Chat Window Layer -->
-    <div id="active-chat-window">
-        <div class="top-header">
-            <div style="display: flex; align-items: center; gap: 10px;">
-                <i class="fa-solid fa-arrow-left" onclick="closeChatWindow()" style="cursor:pointer; font-size: 18px;"></i>
-                <span id="active-chat-username" style="font-weight: bold; font-size: 15px;">Username</span>
-            </div>
-        </div>
-        <div class="chat-messages-box" id="chat-messages-list">
-            <!-- Messages load here -->
-        </div>
-        <div class="chat-input-bar">
-            <input type="text" id="chat-message-input" placeholder="Message...">
-            <button onclick="sendDirectMessage()">Send</button>
-        </div>
-    </div>
-
-    <!-- 4. PROFILE VIEW -->
-    <div id="profile-container" class="app-view">
-        <div class="top-header">
-            <h2 id="my-profile-username">Profile</h2>
-            <i class="fa-solid fa-right-from-bracket" onclick="handleLogout()" style="cursor:pointer; color:#ed4956;"></i>
-        </div>
-        <div style="padding: 20px; text-align: center;">
-            <div id="my-profile-avatar" style="width: 80px; height: 80px; border-radius: 50%; background: #333; margin: 0 auto 15px auto; display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: bold;">U</div>
-            <h3 id="profile-display-name">Username</h3>
-            <p style="color: #888; font-size: 13px; margin-top: 5px;">Welcome to my hybrid profile!</p>
-        </div>
-    </div>
-
-    <!-- BOTTOM NAVIGATION BAR -->
-    <div class="bottom-nav" id="main-bottom-nav" style="display: none;">
-        <i class="fa-solid fa-house" onclick="switchView('insta-feed-container')"></i>
-        <i class="fa-solid fa-compass" onclick="switchView('insta-feed-container')"></i>
-        <i class="fa-solid fa-square-plus" onclick="openUploadModal()"></i>
-        <i class="fa-solid fa-comment-dots" onclick="switchView('chat-container')"></i>
-        <i class="fa-solid fa-user" onclick="switchView('profile-container')"></i>
-    </div>
-
-</div>
-
-<!-- Simple Upload Prompt Modal -->
-<div id="upload-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:300; justify-content:center; align-items:center;">
-    <div style="background:#121212; padding:20px; border-radius:12px; width:90%; max-width:400px; border:1px solid #262626;">
-        <h3 style="margin-bottom:15px; font-size:16px;">Create New Post</h3>
-        <input type="text" id="upload-image-url" class="auth-input" placeholder="Paste Image URL (.jpg, .png)">
-        <input type="text" id="upload-caption-text" class="auth-input" placeholder="Write a caption...">
-        <div style="display:flex; gap:10px; margin-top:10px;">
-            <button class="auth-btn" style="background:#262626;" onclick="closeUploadModal()">Cancel</button>
-            <button class="auth-btn" onclick="submitNewPost()">Share</button>
-        </div>
-    </div>
-</div>
-
-<script>
-    // ==========================================
-    // SUPABASE CONFIGURATION (Replace with your keys)
-    // ==========================================
-    const SUPABASE_URL = 'YOUR_SUPABASE_URL';
-    const SUPABASE_KEY = 'YOUR_SUPABASE_ANON_KEY';
-    
-    // Fallback client initialization check
-    let supabaseClient = null;
-    try {
-        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-    } catch(e) {
-        console.warn("Supabase init error, running in local fallback state.");
-    }
-
-    let currentActiveView = 'auth-container';
-    let currentChatRecipient = null;
-
-    // --- AUTHENTICATION LOGIC ---
-    function toggleAuthMode(isSignup) {
-        document.getElementById('login-form-box').style.display = isSignup ? 'none' : 'block';
-        document.getElementById('signup-form-box').style.display = isSignup ? 'block' : 'none';
-    }
-
-    async function handleSignup() {
-        const username = document.getElementById('signup-username').value.trim();
-        const email = document.getElementById('signup-email').value.trim();
-        const password = document.getElementById('signup-password').value.trim();
-
-        if (!username || !email || !password) {
-            alert("Kripya sabhi fields bharein!");
-            return;
-        }
-
-        if (supabaseClient) {
-            const { data, error } = await supabaseClient.auth.signUp({ email, password });
-            if (error) { alert(error.message); return; }
+        <!-- AUTHENTICATION VIEW (Login / Signup) -->
+        <div id="auth-container" class="active">
+            <h1 class="insta-logo">InstaTelegram</h1>
             
-            // Save user in users table
-            await supabaseClient.from('users').insert([{ username, email, avatar_url: '' }]);
-        }
+            <!-- Login Box -->
+            <div id="login-form-box" style="width: 100%;">
+                <input type="email" id="login-email" class="auth-input" placeholder="Email">
+                <input type="password" id="login-password" class="auth-input" placeholder="Password">
+                <button class="auth-btn" onclick="handleLogin()">Log In</button>
+                <div class="auth-switch" onclick="toggleAuthMode(true)">Don't have an account? <span>Sign up</span></div>
+            </div>
 
-        localStorage.setItem('currentUsername', username);
-        alert("Account successfully ban gaya!");
-        enterApp(username);
-    }
+            <!-- Signup Box -->
+            <div id="signup-form-box" style="width: 100%; display: none;">
+                <input type="text" id="signup-username" class="auth-input" placeholder="Username">
+                <input type="email" id="signup-email" class="auth-input" placeholder="Email">
+                <input type="password" id="signup-password" class="auth-input" placeholder="Password">
+                <button class="auth-btn" onclick="handleSignup()">Sign Up</button>
+                <div class="auth-switch" onclick="toggleAuthMode(false)">Have an account? <span>Log in</span></div>
+            </div>
+        </div>
 
-    async function handleLogin() {
-        const email = document.getElementById('login-email').value.trim();
-        const password = document.getElementById('login-password').value.trim();
-
-        if (!email || !password) {
-            alert("Kripya email aur password dalein!");
-            return;
-        }
-
-        if (supabaseClient) {
-            const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
-            if (error) { alert("Login failed: " + error.message); return; }
-        }
-
-        // Mock/Fallback session username extraction
-        let username = email.split('@')[0];
-        localStorage.setItem('currentUsername', username);
-        enterApp(username);
-    }
-
-    async function handleGoogleLogin() {
-        if (supabaseClient) {
-            const { data, error } = await supabaseClient.auth.signInWithOAuth({
-                provider: 'google',
-            });
-            if (error) alert("Google Login Error: " + error.message);
-        } else {
-            const googleUser = prompt("Enter your Google Username:");
-            if (googleUser) {
-                localStorage.setItem('currentUsername', googleUser);
-                enterApp(googleUser);
-            }
-        }
-    }
-
-    function enterApp(username) {
-        document.getElementById('auth-container').classList.remove('active');
-        document.getElementById('main-bottom-nav').style.display = 'flex';
-        switchView('insta-feed-container');
-        
-        document.getElementById('profile-display-name').textContent = username;
-        document.getElementById('my-profile-username').textContent = username;
-        document.getElementById('my-profile-avatar').textContent = username.charAt(0).toUpperCase();
-
-        fetchFeedPosts();
-        fetchChatUsers();
-    }
-
-    function handleLogout() {
-        localStorage.removeItem('currentUsername');
-        location.reload();
-    }
-
-    // --- VIEW ROUTER ---
-    function switchView(viewId) {
-        document.querySelectorAll('.app-view').forEach(v => v.classList.remove('active'));
-        document.getElementById(viewId).classList.add('active');
-        currentActiveView = viewId;
-
-        if (viewId === 'insta-feed-container') fetchFeedPosts();
-        if (viewId === 'chat-container') fetchChatUsers();
-    }
-
-    // --- INSTAGRAM FEED & POSTS ---
-    async function fetchFeedPosts() {
-        const feedArea = document.getElementById('feed-posts-area');
-        feedArea.innerHTML = '<div style="text-align:center; color:#777; padding:20px;">Loading posts...</div>';
-
-        let posts = [];
-        if (supabaseClient) {
-            const { data } = await supabaseClient.from('posts').select('*').order('created_at', { ascending: false });
-            posts = data || [];
-        } else {
-            // Local fallback data demo
-            posts = JSON.parse(localStorage.getItem('local_posts') || '[]');
-        }
-
-        if (posts.length === 0) {
-            feedArea.innerHTML = '<div style="text-align:center; color:#777; padding:40px;">No posts yet. Tap + to upload!</div>';
-            return;
-        }
-
-        feedArea.innerHTML = '';
-        posts.forEach(post => {
-            const card = document.createElement('div');
-            card.className = 'post-card';
-            card.innerHTML = `
-                <div class="post-header">
-                    <div class="avatar">${post.username.charAt(0).toUpperCase()}</div>
-                    <b>${post.username}</b>
+        <!-- 1. INSTAGRAM FEED VIEW -->
+        <div id="insta-feed-container" class="app-view">
+            <div class="top-header">
+                <h2>InstaTelegram</h2>
+                <div style="display: flex; gap: 15px; font-size: 20px;">
+                    <i class="fa-regular fa-square-plus" onclick="openUploadModal()" style="cursor:pointer;"></i>
+                    <i class="fa-brands fa-telegram-plane" onclick="switchView('chat-container')" style="cursor:pointer;"></i>
                 </div>
-                <div class="post-img-container">
-                    <img src="${post.image_url}" loading="lazy" onerror="this.style.display='none'">
+            </div>
+            <div id="feed-posts-area" style="flex: 1; overflow-y: auto;">
+                <!-- Dynamic Posts Here -->
+            </div>
+        </div>
+
+        <!-- 2. EXPLORE / SEARCH VIEW -->
+        <div id="explore-container" class="app-view">
+            <div class="top-header">
+                <h2>Explore</h2>
+            </div>
+            <div style="padding: 15px;">
+                <input type="text" id="global-user-search" class="auth-input" placeholder="Search user to message..." oninput="searchGlobalUsers(this.value)">
+                <div id="search-results-list" style="margin-top: 10px;"></div>
+            </div>
+        </div>
+
+        <!-- 3. UPLOAD POST VIEW / MODAL -->
+        <div id="upload-modal" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:300; justify-content:center; align-items:center; padding:20px;">
+            <div style="background:#121212; padding:20px; border-radius:10px; width:100%; max-width:400px; border:1px solid #262626;">
+                <h3 style="margin-bottom:15px;">Create New Post</h3>
+                <input type="text" id="upload-image-url" class="auth-input" placeholder="Image URL">
+                <input type="text" id="upload-caption-text" class="auth-input" placeholder="Write a caption...">
+                <button class="auth-btn" onclick="submitNewPost()">Share Post</button>
+                <button class="auth-btn" style="background:#444; margin-top:5px;" onclick="closeUploadModal()">Cancel</button>
+            </div>
+        </div>
+
+        <!-- 4. TELEGRAM CHAT LIST VIEW -->
+        <div id="chat-container" class="app-view">
+            <div class="top-header">
+                <h2>Chats</h2>
+                <i class="fa-solid fa-magnifying-glass" onclick="switchView('explore-container')" style="cursor:pointer;"></i>
+            </div>
+            <div id="chat-users-list" style="flex:1; overflow-y:auto;">
+                <!-- Active Chats Here -->
+            </div>
+
+            <!-- Active Chat Conversation Window -->
+            <div id="active-chat-window" style="display:none; flex-direction:column; position:absolute; top:0; left:0; width:100%; height:100%; background:#000; z-index:250;">
+                <div class="top-header">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <i class="fa-solid fa-arrow-left" onclick="closeChatWindow()" style="cursor:pointer;"></i>
+                        <span id="active-chat-username" style="font-weight:bold;"></span>
+                    </div>
                 </div>
-                <div class="post-actions">
-                    <i class="fa-regular fa-heart" onclick="this.classList.toggle('fa-solid'); this.style.color=this.classList.contains('fa-solid')?'#ed4956':'#fff'"></i>
-                    <i class="fa-regular fa-comment"></i>
+                <div id="chat-messages-list" class="chat-messages-box" style="flex:1; overflow-y:auto; padding:15px; display:flex; flexDirection:column; gap:10px;"></div>
+                <div class="chat-input-bar">
+                    <input type="text" id="chat-message-input" placeholder="Message...">
+                    <button onclick="sendDirectMessage()">Send</button>
                 </div>
-                <div class="post-details">
-                    <p style="margin-bottom:4px;"><b>${post.username}</b> ${post.caption || ''}</p>
-                </div>
-            `;
-            feedArea.appendChild(card);
-        });
-    }
+            </div>
+        </div>
 
-    function openUploadModal() {
-        document.getElementById('upload-modal').style.display = 'flex';
-    }
-
-    function closeUploadModal() {
-        document.getElementById('upload-modal').style.display = 'none';
-    }
-
-    async function submitNewPost() {
-        const imageUrl = document.getElementById('upload-image-url').value.trim();
-        const caption = document.getElementById('upload-caption-text').value.trim();
-        const username = localStorage.getItem('currentUsername');
-
-        if (!imageUrl) {
-            alert("Kripya image URL dalein!");
-            return;
-        }
-
-        if (supabaseClient) {
-            await supabaseClient.from('posts').insert([{ username, image_url: imageUrl, caption }]);
-        } else {
-            let posts = JSON.parse(localStorage.getItem('local_posts') || '[]');
-            posts.unshift({ username, image_url: imageUrl, caption, created_at: new Date() });
-            localStorage.setItem('local_posts', JSON.stringify(posts));
-        }
-
-        closeUploadModal();
-        document.getElementById('upload-image-url').value = '';
-        document.getElementById('upload-caption-text').value = '';
-        switchView('insta-feed-container');
-    }
-
-    // --- TELEGRAM CHAT & MESSAGING ---
-    async function fetchChatUsers() {
-        const chatList = document.getElementById('chat-users-list');
-        chatList.innerHTML = '<div style="text-align:center; color:#777; padding:20px;">Loading users...</div>';
-
-        let users = [];
-        if (supabaseClient) {
-            const { data } = await supabaseClient.from('users').select('username');
-            users = data || [];
-        } else {
-            users = [{username: 'Aman_Dev'}, {username: 'Priya_Tech'}, {username: 'Rahul_99'}];
-        }
-
-        const myName = localStorage.getItem('currentUsername');
-        chatList.innerHTML = '';
-
-        users.forEach(u => {
-            if (u.username === myName) return;
-            const row = document.createElement('div');
-            row.className = 'chat-user-row';
-            row.innerHTML = `
-                <div class="avatar">${u.username.charAt(0).toUpperCase()}</div>
+        <!-- 5. PROFILE VIEW -->
+        <div id="profile-container" class="app-view">
+            <div class="top-header">
+                <h2 id="profile-display-name">Profile</h2>
+                <i class="fa-solid fa-right-from-bracket" onclick="handleLogout()" style="cursor:pointer; color:#ed4956;"></i>
+            </div>
+            <div style="padding:20px; display:flex; align-items:center; gap:20px; border-bottom:1px solid #262626;">
+                <div id="my-profile-avatar" class="avatar" style="width:70px; height:70px; font-size:24px;">U</div>
                 <div>
-                    <b>${u.username}</b>
-                    <p style="font-size:12px; color:#888; margin-top:2px;">Tap to open chat</p>
+                    <h3 id="my-profile-username">username</h3>
+                    <p style="font-size:13px; color:#aaa; margin-top:4px;">InstaTelegram User</p>
                 </div>
-            `;
-            row.onclick = () => openChatWindow(u.username);
-            chatList.appendChild(row);
-        });
-    }
+            </div>
+        </div>
 
-    function openChatWindow(recipient) {
-        currentChatRecipient = recipient;
-        document.getElementById('active-chat-username').textContent = recipient;
-        document.getElementById('active-chat-window').style.display = 'flex';
-        loadMessages();
-    }
+        <!-- INSTAGRAM BOTTOM NAVIGATION BAR -->
+        <div class="bottom-nav" id="main-bottom-nav">
+            <i class="fa-solid fa-house" onclick="switchView('insta-feed-container')"></i>
+            <i class="fa-solid fa-compass" onclick="switchView('explore-container')"></i>
+            <i class="fa-regular fa-square-plus" onclick="openUploadModal()"></i>
+            <i class="fa-regular fa-comment-dots" onclick="switchView('chat-container')"></i>
+            <i class="fa-solid fa-user" onclick="switchView('profile-container')"></i>
+        </div>
 
-    function closeChatWindow() {
-        document.getElementById('active-chat-window').style.display = 'none';
-        currentChatRecipient = null;
-    }
+    </div>
 
-    async function loadMessages() {
-        const msgBox = document.getElementById('chat-messages-list');
-        const myName = localStorage.getItem('currentUsername');
-        msgBox.innerHTML = '';
-
-        let messages = [];
-        if (supabaseClient) {
-            const { data } = await supabaseClient.from('messages')
-                .select('*')
-                .or(`and(sender.eq.${myName},receiver.eq.${currentChatRecipient}),and(sender.eq.${currentChatRecipient},receiver.eq.${myName})`)
-                .order('created_at', { ascending: true });
-            messages = data || [];
-        } else {
-            messages = JSON.parse(localStorage.getItem(`chat_${myName}_${currentChatRecipient}`) || '[]');
-        }
-
-        messages.forEach(m => {
-            const div = document.createElement('div');
-            div.className = `chat-msg ${m.sender === myName ? 'sent' : 'received'}`;
-            div.textContent = m.message;
-            msgBox.appendChild(div);
-        });
-        msgBox.scrollTop = msgBox.scrollHeight;
-    }
-
-    async function sendDirectMessage() {
-        const input = document.getElementById('chat-message-input');
-        const text = input.value.trim();
-        if (!text || !currentChatRecipient) return;
-
-        const myName = localStorage.getItem('currentUsername');
-
-        if (supabaseClient) {
-            await supabaseClient.from('messages').insert([
-                { sender: myName, receiver: currentChatRecipient, message: text }
-            ]);
-        } else {
-            let key = `chat_${myName}_${currentChatRecipient}`;
-            let keyReverse = `chat_${currentChatRecipient}_${myName}`;
-            let messages = JSON.parse(localStorage.getItem(key) || '[]');
-            messages.push({ sender: myName, receiver: currentChatRecipient, message: text });
-            localStorage.setItem(key, JSON.stringify(messages));
-            localStorage.setItem(keyReverse, JSON.stringify(messages));
-        }
-
-        input.value = '';
-        loadMessages();
-    }
-
-    // Auto-login check on startup
-    window.addEventListener('DOMContentLoaded', () => {
-        const savedUser = localStorage.getItem('currentUsername');
-        if (savedUser) {
-            enterApp(savedUser);
-        }
-    });
-</script>
-
+    <!-- Supabase CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="script.js"></script>
 </body>
 </html>
