@@ -727,14 +727,14 @@ function openChatWithUser() {
     openChatWith(viewingTargetUser);
                 }
 // ==========================================
-// 100% WORKING DATABASE-BASED WEBRTC CALLING
+// INSTAGRAM-STYLE CLEAN WEBRTC CALLING SYSTEM
 // ==========================================
 
 let localStream = null;
 let remoteStream = null;
 let peerConnection = null;
-let callCheckInterval = null;
-let currentCallId = null;
+let signalingChannel = null;
+let isCaller = false;
 
 const rtcConfig = {
     iceServers: [
@@ -743,277 +743,236 @@ const rtcConfig = {
     ]
 };
 
-// Listen for incoming calls via Supabase messages table
-function startListeningForCalls() {
+// Initialize Signaling Channel (Using Supabase Broadcast so text table is clean)
+function initSignalingChannel(roomUser) {
     if (!supabaseClient) return;
+    if (signalingChannel) supabaseClient.removeChannel(signalingChannel);
+
     const currentUser = localStorage.getItem('currentUsername');
+    const roomName = `rtc_call_${[currentUser, roomUser].sort().join('_')}`;
 
-    // Realtime subscription for call signals
-    supabaseClient
-        .channel(`calls_${currentUser}`)
-        .on(
-            'postgres_changes',
-            {
-                event: 'INSERT',
-                schema: 'public',
-                table: 'messages',
-                filter: `receiver=eq.${currentUser}`
-            },
-            async payload => {
-                const msg = payload.new;
-                if (msg.type === 'call-offer') {
-                    const callData = JSON.parse(msg.message);
-                    currentCallId = msg.id;
-                    
-                    const accept = confirm(`Incoming ${callData.callType.toUpperCase()} Call from ${msg.sender}! Accept?`);
-                    if (accept) {
-                        showCallUI(callData.callType, msg.sender, true);
-                        await setupWebRTCStream(callData.callType === 'video');
-                        createPeerConnection(msg.sender);
+    signalingChannel = supabaseClient.channel(roomName, {
+        config: { broadcast: { self: false } }
+    });
 
-                        await peerConnection.setRemoteDescription(new RTCSessionDescription(callData.offer));
-                        const answer = await peerConnection.createAnswer();
-                        await peerConnection.setLocalDescription(answer);
-
-                        // Send Answer back
-                        await supabaseClient.from('messages').insert([{
-                            sender: currentUser,
-                            receiver: msg.sender,
-                            message: JSON.stringify({ type: 'call-answer', answer }),
-                            type: 'call-answer'
-                        }]);
-
-                        startIceCandidatePolling(msg.sender);
-                    } else {
-                        // Reject call
-                        await supabaseClient.from('messages').insert([{
-                            sender: currentUser,
-                            receiver: msg.sender,
-                            message: JSON.stringify({ type: 'call-rejected' }),
-                            type: 'call-rejected'
-                        }]);
-                    }
-                }
+    signalingChannel
+        .on('broadcast', { event: 'call-offer' }, async ({ payload }) => {
+            if (payload.receiver === currentUser) {
+                // Show Instagram-style Incoming Call Screen
+                showIncomingCallUI(payload.caller, payload.callType);
+                window.pendingOffer = payload.offer;
+                window.pendingCaller = payload.caller;
             }
-        )
+        })
+        .on('broadcast', { event: 'call-answer' }, async ({ payload }) => {
+            if (peerConnection && peerConnection.signalingState === 'have-local-offer') {
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.answer));
+                updateCallStatus("Connected");
+            }
+        })
+        .on('broadcast', { event: 'ice-candidate' }, async ({ payload }) => {
+            if (peerConnection && payload.candidate) {
+                try {
+                    await peerConnection.addIceCandidate(new RTCIceCandidate(payload.candidate));
+                } catch (e) {}
+            }
+        })
+        .on('broadcast', { event: 'call-ended' }, () => {
+            endCallScreen(false);
+        })
         .subscribe();
 }
 
-// Poll for answers and ICE candidates
-function startIceCandidatePolling(targetUser) {
-    const currentUser = localStorage.getItem('currentUsername');
-    if (callCheckInterval) clearInterval(callCheckInterval);
-
-    callCheckInterval = setInterval(async () => {
-        if (!supabaseClient || !peerConnection) return;
-
-        const { data } = await supabaseClient
-            .from('messages')
-            .select('*')
-            .eq('receiver', currentUser)
-            .eq('sender', targetUser)
-            .order('created_at', { ascending: false })
-            .limit(5);
-
-        if (data) {
-            for (let msg of data) {
-                try {
-                    const parsed = JSON.parse(msg.message);
-                    if (parsed.type === 'call-answer' && peerConnection.signalingState === 'have-local-offer') {
-                        await peerConnection.setRemoteDescription(new RTCSessionDescription(parsed.answer));
-                        const statusText = document.getElementById('call-status-text');
-                        if (statusText) statusText.textContent = "Connected";
-                    } else if (parsed.type === 'ice-candidate' && parsed.candidate) {
-                        try {
-                            await peerConnection.addIceCandidate(new RTCIceCandidate(parsed.candidate));
-                        } catch (e) {}
-                    } else if (parsed.type === 'call-rejected') {
-                        alert("Call was declined.");
-                        endCallScreen();
-                    }
-                } catch (e) {}
-            }
-        }
-    }, 2000);
-}
-
-async function setupWebRTCStream(isVideo) {
+async function setupMedia(isVideo) {
     try {
         localStream = await navigator.mediaDevices.getUserMedia({
             audio: true,
             video: isVideo ? { width: 1280, height: 720 } : false
         });
-
-        const localVideoEl = document.getElementById('local-video-preview');
-        if (localVideoEl) {
-            localVideoEl.srcObject = localStream;
-        }
-    } catch (err) {
-        alert("Could not access camera or microphone. Please check permissions.");
+        const localVid = document.getElementById('local-video-preview');
+        if (localVid) localVid.srcObject = localStream;
+    } catch (e) {
+        alert("Camera/Microphone permission denied.");
     }
 }
 
-function createPeerConnection(receiver) {
+function createPeerConnection(targetUser, isVideo) {
     peerConnection = new RTCPeerConnection(rtcConfig);
-    const currentUser = localStorage.getItem('currentUsername');
 
     if (localStream) {
-        localStream.getTracks().forEach(track => {
-            peerConnection.addTrack(track, localStream);
-        });
+        localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
     }
 
     remoteStream = new MediaStream();
-    const remoteVideoEl = document.getElementById('remote-video-display');
-    if (remoteVideoEl) {
-        remoteVideoEl.srcObject = remoteStream;
-    }
+    const remoteVid = document.getElementById('remote-video-display');
+    if (remoteVid) remoteVid.srcObject = remoteStream;
 
     peerConnection.ontrack = event => {
-        event.streams[0].getTracks().forEach(track => {
-            remoteStream.addTrack(track);
-        });
-        const statusText = document.getElementById('call-status-text');
-        if (statusText) statusText.textContent = "Connected";
+        event.streams[0].getTracks().forEach(track => remoteStream.addTrack(track));
+        updateCallStatus("Connected");
     };
 
     peerConnection.onicecandidate = event => {
-        if (event.candidate && supabaseClient) {
-            supabaseClient.from('messages').insert([{
-                sender: currentUser,
-                receiver: receiver,
-                message: JSON.stringify({ type: 'ice-candidate', candidate: event.candidate }),
-                type: 'ice-candidate'
-            }]).then();
+        if (event.candidate && signalingChannel) {
+            signalingChannel.send({
+                type: 'broadcast',
+                event: 'ice-candidate',
+                payload: { candidate: event.candidate }
+            });
         }
     };
 }
 
-// Trigger Audio Call
+// Start Audio Call
 window.startAudioCall = async function() {
-    if (!activeChatUser) {
-        alert("Open a chat to call!");
-        return;
-    }
-    const currentUser = localStorage.getItem('currentUsername');
-    showCallUI('audio', activeChatUser, false);
-    await setupWebRTCStream(false);
-    createPeerConnection(activeChatUser);
+    if (!activeChatUser) return alert("Open chat first!");
+    isCaller = true;
+    initSignalingChannel(activeChatUser);
+    showActiveCallUI('audio', activeChatUser, false);
+    await setupMedia(false);
+    createPeerConnection(activeChatUser, false);
 
     const offer = await peerConnection.createOffer();
     await peerConnection.setLocalDescription(offer);
 
-    await supabaseClient.from('messages').insert([{
-        sender: currentUser,
-        receiver: activeChatUser,
-        message: JSON.stringify({ type: 'call-offer', callType: 'audio', offer }),
-        type: 'call-offer'
-    }]);
-
-    startIceCandidatePkg(activeChatUser);
+    setTimeout(() => {
+        signalingChannel.send({
+            type: 'broadcast',
+            event: 'call-offer',
+            payload: { caller: localStorage.getItem('currentUsername'), receiver: activeChatUser, callType: 'audio', offer }
+        });
+    }, 1000);
 };
 
-// Trigger Video Call
+// Start Video Call
 window.startVideoCall = async function() {
-    if (!activeChatUser) {
-        alert("Open a chat to call!");
-        return;
-    }
-    const currentUser = localStorage.getItem('currentUsername');
-    showCallUI('video', activeChatUser, false);
-    await setupWebRTCStream(true);
-    createPeerConnection(activeChatUser);
+    if (!activeChatUser) return alert("Open chat first!");
+    isCaller = true;
+    initSignalingChannel(activeChatUser);
+    showActiveCallUI('video', activeChatUser, true);
+    await setupMedia(true);
+    createPeerConnection(activeChatUser, true);
 
     const offer = await peerConnection.createOffer();
     await peerConnection.setLocalDescription(offer);
 
-    await supabaseClient.from('messages').insert([{
-        sender: currentUser,
-        receiver: activeChatUser,
-        message: JSON.stringify({ type: 'call-offer', callType: 'video', offer }),
-        type: 'call-offer'
-    }]);
-
-    startIceCandidatePkg(activeChatUser);
+    setTimeout(() => {
+        signalingChannel.send({
+            type: 'broadcast',
+            event: 'call-offer',
+            payload: { caller: localStorage.getItem('currentUsername'), receiver: activeChatUser, callType: 'video', offer }
+        });
+    }, 1000);
 };
 
-function startIceCandidatePkg(targetUser) {
-    startIceCandidatePolling(targetUser);
-}
+// Accept Incoming Call
+window.acceptIncomingCall = async function() {
+    const caller = window.callerName;
+    const isVideo = window.incomingCallType === 'video';
+    
+    initSignalingChannel(caller);
+    showActiveCallUI(window.incomingCallType, caller, isVideo);
+    await setupMedia(isVideo);
+    createPeerConnection(caller, isVideo);
 
-function showCallUI(type, targetUser, isReceiver) {
-    let callOverlay = document.getElementById('instagram-call-overlay');
-    if (!callOverlay) {
-        callOverlay = document.createElement('div');
-        callOverlay.id = 'instagram-call-overlay';
-        callOverlay.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:#1a1a1a; z-index:9999; display:flex; flex-direction:column; justify-content:space-between; align-items:center; padding:40px 20px; color:#fff;";
-        document.body.appendChild(callOverlay);
+    await peerConnection.setRemoteDescription(new RTCSessionDescription(window.pendingOffer));
+    const answer = await peerConnection.createAnswer();
+    await peerConnection.setLocalDescription(answer);
+
+    signalingChannel.send({
+        type: 'broadcast',
+        event: 'call-answer',
+        payload: { answer }
+    });
+};
+
+// Reject / End Call
+window.rejectIncomingCall = function() {
+    if (signalingChannel) {
+        signalingChannel.send({ type: 'broadcast', event: 'call-ended', payload: {} });
     }
+    endCallScreen(true);
+};
 
-    const titleType = isReceiver ? `Incoming ${type} call...` : 'Calling... (Connecting)';
-
-    callOverlay.innerHTML = `
-        <div style="position:relative; width:100%; height:100%; display:flex; flex-direction:column; justify-content:space-between; align-items:center;">
-            <video id="remote-video-display" autoplay playsinline style="position:absolute; top:0; left:0; width:100%; height:100%; object-fit:cover; z-index:1; background:#000;"></video>
-            
-            <div style="z-index:2; display:flex; flex-direction:column; align-items:center; gap:10px; margin-top:40px; background:rgba(0,0,0,0.5); padding:15px 30px; border-radius:20px;">
-                <div class="avatar" style="width:70px; height:70px; font-size:28px; background-color:#363636;">${targetUser ? targetUser.charAt(0).toUpperCase() : 'U'}</div>
-                <h2 style="font-size:20px; font-weight:500; margin:0;">${targetUser || 'User'}</h2>
-                <p style="font-size:13px; color:#ccc; margin:0;" id="call-status-text">${titleType}</p>
-            </div>
-
-            ${type === 'video' ? `<video id="local-video-preview" autoplay playsinline muted style="position:absolute; top:20px; right:20px; width:100px; height:150px; object-fit:cover; border-radius:12px; z-index:3; border:2px solid #fff;"></video>` : ''}
-
-            <div style="z-index:2; display:flex; gap:30px; margin-bottom:40px; align-items:center;">
-                <button onclick="toggleCallMute(this)" style="width:55px; height:55px; border-radius:50%; background:#262626; border:none; color:#fff; font-size:20px; cursor:pointer;"><i class="fa-solid fa-microphone"></i></button>
-                <button onclick="endCallScreen()" style="width:65px; height:65px; border-radius:50%; background:#ed4956; border:none; color:#fff; font-size:24px; cursor:pointer;"><i class="fa-solid fa-phone-slash"></i></button>
-                ${type === 'video' ? `<button onclick="toggleCamera(this)" style="width:55px; height:55px; border-radius:50%; background:#262626; border:none; color:#fff; font-size:20px; cursor:pointer;"><i class="fa-solid fa-video"></i></button>` : ''}
-            </div>
-        </div>
-    `;
-    callOverlay.style.display = 'flex';
-}
-
-window.endCallScreen = function() {
-    if (callCheckInterval) clearInterval(callCheckInterval);
+window.endCallScreen = function(notifyOther = true) {
+    if (notifyOther && signalingChannel) {
+        signalingChannel.send({ type: 'broadcast', event: 'call-ended', payload: {} });
+    }
     if (localStream) {
-        localStream.getTracks().forEach(track => track.stop());
+        localStream.getTracks().forEach(t => t.stop());
         localStream = null;
     }
     if (peerConnection) {
         peerConnection.close();
         peerConnection = null;
     }
-    const callOverlay = document.getElementById('instagram-call-overlay');
-    if (callOverlay) {
-        callOverlay.style.display = 'none';
-        callOverlay.remove();
-    }
+    const overlay = document.getElementById('instagram-call-overlay');
+    if (overlay) overlay.remove();
 }
 
-window.toggleCallMute = function(btn) {
-    if (localStream) {
-        const audioTrack = localStream.getAudioTracks()[0];
-        if (audioTrack) {
-            audioTrack.enabled = !audioTrack.enabled;
-            btn.style.background = audioTrack.enabled ? '#262626' : '#fff';
-            btn.style.color = audioTrack.enabled ? '#fff' : '#000';
-        }
-    }
+function updateCallStatus(text) {
+    const statusEl = document.getElementById('call-status-text');
+    if (statusEl) statusEl.textContent = text;
 }
 
-window.toggleCamera = function(btn) {
-    if (localStream) {
-        const videoTrack = localStream.getVideoTracks()[0];
-        if (videoTrack) {
-            videoTrack.enabled = !videoTrack.enabled;
-            btn.style.background = videoTrack.enabled ? '#262626' : '#fff';
-            btn.style.color = videoTrack.enabled ? '#fff' : '#000';
-        }
+// Instagram Style Incoming Call Screen (Ringing UI)
+function showIncomingCallUI(caller, type) {
+    window.callerName = caller;
+    window.incomingCallType = type;
+    
+    let overlay = document.getElementById('instagram-call-overlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'instagram-call-overlay';
+        document.body.appendChild(overlay);
     }
+
+    overlay.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:linear-gradient(135deg, #1f1f1f, #111); z-index:99999; display:flex; flex-direction:column; justify-content:space-between; align-items:center; padding:60px 20px; color:#fff; font-family:sans-serif;";
+
+    overlay.innerHTML = `
+        <div style="display:flex; flex-direction:column; align-items:center; gap:15px; margin-top:50px;">
+            <div style="width:90px; height:90px; border-radius:50%; background:#333; display:flex; align-items:center; justify-content:center; font-size:36px; border:2px solid #555;">${caller.charAt(0).toUpperCase()}</div>
+            <h2 style="font-size:24px; font-weight:600; margin:0;">${caller}</h2>
+            <p style="font-size:14px; color:#aaa; margin:0;">Incoming Instagram ${type} call...</p>
+        </div>
+        <div style="display:flex; gap:60px; margin-bottom:60px; align-items:center;">
+            <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
+                <button onclick="rejectIncomingCall()" style="width:70px; height:70px; border-radius:50%; background:#ed4956; border:none; color:#fff; font-size:26px; cursor:pointer; box-shadow:0 4px 15px rgba(237,73,86,0.4);"><i class="fa-solid fa-phone-slash"></i></button>
+                <span style="font-size:12px; color:#aaa;">Decline</span>
+            </div>
+            <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
+                <button onclick="acceptIncomingCall()" style="width:70px; height:70px; border-radius:50%; background:#46c93a; border:none; color:#fff; font-size:26px; cursor:pointer; box-shadow:0 4px 15px rgba(70,201,58,0.4);"><i class="fa-solid fa-phone"></i></button>
+                <span style="font-size:12px; color:#aaa;">Accept</span>
+            </div>
+        </div>
+    `;
 }
 
-// Start listening for calls when app loads
-window.addEventListener('DOMContentLoaded', () => {
-    setTimeout(startListeningForCalls, 2000);
-});
+// Active Call UI (Jab call connect ho jaye ya caller call lagaye)
+function showActiveCallUI(type, targetUser, isVideo) {
+    let overlay = document.getElementById('instagram-call-overlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'instagram-call-overlay';
+        document.body.appendChild(overlay);
+    }
+
+    overlay.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:#000; z-index:99999; display:flex; flex-direction:column; justify-content:space-between; align-items:center; padding:40px 20px; color:#fff;";
+
+    overlay.innerHTML = `
+        <div style="position:relative; width:100%; height:100%; display:flex; flex-direction:column; justify-content:space-between; align-items:center;">
+            <video id="remote-video-display" autoplay playsinline style="position:absolute; top:0; left:0; width:100%; height:100%; object-fit:cover; z-index:1; background:#111;"></video>
+            
+            <div style="z-index:2; display:flex; flex-direction:column; align-items:center; gap:8px; margin-top:30px; background:rgba(0,0,0,0.6); padding:12px 25px; border-radius:20px; backdrop-filter:blur(5px);">
+                <h3 style="font-size:18px; font-weight:500; margin:0;">${targetUser}</h3>
+                <p style="font-size:12px; color:#00ff9d; margin:0;" id="call-status-text">Ringing...</p>
+            </div>
+
+            ${isVideo ? `<video id="local-video-preview" autoplay playsinline muted style="position:absolute; top:20px; right:20px; width:110px; height:160px; object-fit:cover; border-radius:12px; z-index:3; border:2px solid rgba(255,255,255,0.8);"></video>` : ''}
+
+            <div style="z-index:2; display:flex; gap:30px; margin-bottom:40px; align-items:center;">
+                <button onclick="endCallScreen(true)" style="width:65px; height:65px; border-radius:50%; background:#ed4956; border:none; color:#fff; font-size:24px; cursor:pointer; box-shadow:0 4px 15px rgba(237,73,86,0.4);"><i class="fa-solid fa-phone-slash"></i></button>
+            </div>
+        </div>
+    `;
+}
