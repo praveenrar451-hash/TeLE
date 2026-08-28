@@ -1,7 +1,4 @@
-window.onerror = function(msg, url, line) {
-    alert("Error: " + msg + "\nLine: " + line);
-};
-const SUPABASE_URL = 'https://ydjbojsqeujahgqinfmk.supabase.co';
+Const SUPABASE_URL = 'https://ydjbojsqeujahgqinfmk.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_jxLWxWU876psNuIx-P7cCw_NR9JHzyI';
 
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
@@ -469,7 +466,6 @@ async function savePostToSupabase(username, caption, imageUrl, progressBanner) {
     uploadModal.style.display = 'none';
     fetchPostsFromDatabase();
 }
-//fetchPostsFromDatabase//
 
 async function fetchPostsFromDatabase(searchQuery = '') {
     let query = supabaseClient.from('posts').select('*').order('created_at', { ascending: false });
@@ -487,21 +483,22 @@ async function fetchPostsFromDatabase(searchQuery = '') {
     const myName = localStorage.getItem('currentUsername');
 
     for (let post of data) {
-        // Data fetching
         const { count: likesCount } = await supabaseClient.from('likes').select('*', { count: 'exact', head: true }).eq('post_id', post.id);
         const { data: myLike } = await supabaseClient.from('likes').select('*').eq('post_id', post.id).eq('username', myName);
         const isLiked = myLike && myLike.length > 0;
-        const { data: comments } = await supabaseClient.from('comments').select('*').eq('post_id', post.id).order('created_at', { ascending: true });
-        const { data: postUserData } = await supabaseClient.from('users').select('avatar_url').eq('username', post.username).single();
 
+        const { data: comments } = await supabaseClient.from('comments').select('*').eq('post_id', post.id).order('created_at', { ascending: true });
+
+        const { data: postUserData } = await supabaseClient.from('users').select('avatar_url').eq('username', post.username).single();
         let avatarHTML = `<div style="width: 30px; height: 30px; background: #444; border-radius: 50%; margin-right: 10px; display:flex; align-items:center; justify-content:center; color:#fff; font-size:12px;">${post.username.charAt(0).toUpperCase()}</div>`;
+        
         if (postUserData && postUserData.avatar_url) {
             avatarHTML = `<div style="width: 30px; height: 30px; border-radius: 50%; margin-right: 10px; overflow: hidden; display:flex; align-items:center; justify-content:center;"><img src="${postUserData.avatar_url}" style="width: 100%; height: 100%; object-fit: cover;"></div>`;
         }
 
         const postCard = document.createElement('div');
         postCard.classList.add('post-card');
-        postCard.style.cssText = "background: #000; border-bottom: 1px solid #262626; margin-bottom: 15px; padding-bottom: 10px; position: relative;";
+        postCard.style.cssText = "background: #000; border-bottom: 1px solid #262626; margin-bottom: 15px; padding-bottom: 10px;";
         
         const isMyPost = post.username === myName;
 
@@ -511,53 +508,155 @@ async function fetchPostsFromDatabase(searchQuery = '') {
                     ${avatarHTML}
                     <span><b>${post.username}</b></span>
                 </div>
-                ${isMyPost ? `<button class="delete-post-btn" data-postid="${post.id}" style="background:transparent; border:none; color:#ed4956; cursor:pointer; font-size:16px;"><i class="fa-solid fa-trash-can"></i></button>` : ''}
+                ${isMyPost ? `<button class="delete-post-btn" data-postid="${post.id}" style="background:transparent; border:none; color:#ed4956; cursor:pointer; font-size:16px;" title="Delete Post"><i class="fa-solid fa-trash-can"></i></button>` : ''}
             </div>
-            <div class="post-img-container" style="width: 100%; max-height: 400px; overflow: hidden; display: flex; justify-content: center; background: #111; position: relative;">
-                ${post.image_url ? `<img src="${post.image_url}" style="width: 100%; object-fit: cover; cursor: pointer;">` : '<div style="padding: 40px; color: #888;">Text Post</div>'}
+            <div style="width: 100%; max-height: 400px; overflow: hidden; display: flex; justify-content: center; background: #111;">
+                ${post.image_url ? `<img src="${post.image_url}" alt="Post image" style="width: 100%; object-fit: cover;">` : '<div style="padding: 40px; color: #888;">Text Post</div>'}
             </div>
             <div style="display: flex; gap: 15px; padding: 10px; font-size: 22px;">
                 <i class="fa-${isLiked ? 'solid fa-heart' : 'regular fa-heart'}" id="like-btn-${post.id}" style="cursor: pointer; color: ${isLiked ? '#ed4956' : '#fff'};"></i>
-                <i class="fa-regular fa-comment" style="color: #fff; cursor: pointer;"></i>
+                <i class="fa-regular fa-comment" style="cursor: pointer; color: #fff;"></i>
             </div>
             <div style="padding: 0 10px;">
-                <p style="font-size: 14px; margin-bottom: 5px;"><b id="likes-count-${post.id}">${likesCount || 0}</b> likes</p>
-                <p style="font-size: 14px;"><b>${post.username}</b> ${post.caption || ''}</p>
-                <div id="comments-box-${post.id}" style="max-height: 80px; overflow-y: auto; font-size: 13px; color: #ccc; margin-top: 5px;">
+                <p style="margin: 0 0 5px 0; font-size: 14px; color: #fff;"><b id="likes-count-${post.id}">${likesCount || 0}</b> likes</p>
+                <p style="margin: 0 0 8px 0; font-size: 14px; color: #fff;"><span style="font-weight:bold; margin-right:5px;">${post.username}</span>${post.caption || ''}</p>
+                
+                <div id="comments-box-${post.id}" style="max-height: 80px; overflow-y: auto; margin-bottom: 5px; font-size: 13px; color: #ccc;">
                     ${comments && comments.length > 0 ? comments.map(c => `<div><b>${c.username}</b>: ${c.comment}</div>`).join('') : '<span style="color: #666; font-size: 12px;">No comments yet</span>'}
                 </div>
+                
                 <div style="display: flex; gap: 5px; margin-top: 5px;">
                     <input type="text" id="comment-input-${post.id}" placeholder="Add a comment..." style="flex: 1; padding: 6px; background: #1a1a1a; border: 1px solid #333; color: #fff; border-radius: 4px; font-size: 12px;">
-                    <button id="comment-submit-${post.id}" style="background: transparent; border: none; color: #0095f6; font-weight: bold; font-size: 12px; cursor: pointer;">Post</button>
+                    <button id="comment-submit-${post.id}" style="background: transparent; border: none; color: #0095f6; font-weight: bold; cursor: pointer; font-size: 12px;">Post</button>
                 </div>
             </div>
         `;
 
-        // 1. Double Tap Logic Call
-        const postImg = postCard.querySelector('img');
-        if (postImg) {
-            enableDoubleTapLike(postImg, post.id, 'post');
-        }
+        postCard.querySelector('.profile-click-target').addEventListener('click', () => {
+            openProfilePage(post.username);
+        });
 
-        // 2. Profile Click
-        postCard.querySelector('.profile-click-target').onclick = () => openProfilePage(post.username);
-
-        // 3. Delete Post
         if (isMyPost) {
-            postCard.querySelector('.delete-post-btn').onclick = async () => {
-                if (confirm('Delete this post?')) {
+            postCard.querySelector('.delete-post-btn').addEventListener('click', async () => {
+                if (confirm('Are you sure you want to delete this post?')) {
                     await supabaseClient.from('posts').delete().eq('id', post.id);
+                    await supabaseClient.from('likes').delete().eq('post_id', post.id);
+                    await supabaseClient.from('comments').delete().eq('post_id', post.id);
                     fetchPostsFromDatabase(searchQuery);
                 }
-            };
+            });
         }
 
-        // 4. Like/Unlike (Single Tap)
         const likeBtn = postCard.querySelector(`#like-btn-${post.id}`);
         const likesCountElem = postCard.querySelector(`#likes-count-${post.id}`);
-        likeBtn.onclick = async () => {
+        
+        likeBtn.addEventListener('click', async () => {
             let currentLikes = parseInt(likesCountElem.textContent);
             if (likeBtn.classList.contains('fa-solid')) {
+                likeBtn.classList.remove('fa-solid');
+                likeBtn.classList.add('fa-regular');
+                likeBtn.style.color = '#fff';
+                likesCountElem.textContent = Math.max(0, currentLikes - 1);
+                await supabaseClient.from('likes').delete().eq('post_id', post.id).eq('username', myName);
+            } else {
+                likeBtn.classList.remove('fa-regular');
+                likeBtn.classList.add('fa-solid');
+                likeBtn.style.color = '#ed4956';
+                likesCountElem.textContent = currentLikes + 1;
+                await supabaseClient.from('likes').insert([{ post_id: post.id, username: myName }]);
+            }
+        });
+
+        const commentInput = postCard.querySelector(`#comment-input-${post.id}`);
+        const commentBtn = postCard.querySelector(`#comment-submit-${post.id}`);
+        const commentsBox = postCard.querySelector(`#comments-box-${post.id}`);
+        
+        const submitCommentAction = async () => {
+            const commentText = commentInput.value.trim();
+            if (!commentText) return;
+
+            if (commentsBox.innerHTML.includes('No comments yet')) commentsBox.innerHTML = '';
+            const newCommentDiv = document.createElement('div');
+            newCommentDiv.innerHTML = `<b>${myName}</b>: ${commentText}`;
+            commentsBox.appendChild(newCommentDiv);
+            commentsBox.scrollTop = commentsBox.scrollHeight;
+            commentInput.value = '';
+
+            await supabaseClient.from('comments').insert([{ post_id: post.id, username: myName, comment: commentText }]);
+        };
+
+        commentBtn.addEventListener('click', submitCommentAction);
+        commentInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') submitCommentAction();
+        });
+
+        postsFeed.appendChild(postCard);
+    }
+}
+
+async function fetchUserProfilePosts(username) {
+    const { data, error } = await supabaseClient.from('posts').select('*').eq('username', username).order('created_at', { ascending: false });
+    if (error) return;
+
+    userProfilePosts.innerHTML = '';
+    const myName = localStorage.getItem('currentUsername');
+
+    if (!data || data.length === 0) {
+        userProfilePosts.innerHTML = '<p style="padding: 20px; color: #707579; text-align: center;">No posts by this user.</p>';
+        return;
+    }
+
+    const { data: postUserData } = await supabaseClient.from('users').select('avatar_url').eq('username', username).single();
+    let avatarHTML = `<div style="width: 30px; height: 30px; background: #444; border-radius: 50%; margin-right: 10px; display:flex; align-items:center; justify-content:center; color:#fff; font-size:12px;">${username.charAt(0).toUpperCase()}</div>`;
+    
+    if (postUserData && postUserData.avatar_url) {
+        avatarHTML = `<div style="width: 30px; height: 30px; border-radius: 50%; margin-right: 10px; overflow: hidden; display:flex; align-items:center; justify-content:center;"><img src="${postUserData.avatar_url}" style="width: 100%; height: 100%; object-fit: cover;"></div>`;
+    }
+
+    data.forEach(post => {
+        const postCard = document.createElement('div');
+        postCard.classList.add('post-card');
+        postCard.style.cssText = "background: #000; border-bottom: 1px solid #262626; margin-bottom: 15px; padding-bottom: 10px;";
+        
+        const isMyPost = post.username === myName;
+
+        postCard.innerHTML = `
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px;">
+                <div style="display: flex; align-items: center;">
+                    ${avatarHTML}
+                    <span><b>${post.username}</b></span>
+                </div>
+                ${isMyPost ? `<button class="delete-profile-post" data-postid="${post.id}" style="background:transparent; border:none; color:#ed4956; cursor:pointer;" title="Delete Post"><i class="fa-solid fa-trash-can"></i></button>` : ''}
+            </div>
+            <div style="width: 100%; max-height: 400px; overflow: hidden; display: flex; justify-content: center; background: #111;">
+                ${post.image_url ? `<img src="${post.image_url}" alt="Post image" style="width: 100%; object-fit: cover;">` : '<div style="padding: 40px; color: #888;">Text Post</div>'}
+            </div>
+            <div style="padding: 10px;">
+                <p style="margin: 0; font-size: 14px; color: #fff;"><b>${post.username}</b> ${post.caption || ''}</p>
+            </div>
+        `;
+
+        if (isMyPost) {
+            postCard.querySelector('.delete-profile-post').addEventListener('click', async () => {
+                if (confirm('Delete this post?')) {
+                    await supabaseClient.from('posts').delete().eq('id', post.id);
+                    fetchUserProfilePosts(username);
+                    fetchProfileStats(username);
+                }
+            });
+        }
+
+        userProfilePosts.appendChild(postCard);
+    });
+}
+
+instaSearchInput.addEventListener('input', async (e) => {
+    const searchText = e.target.value.trim();
+    if (!searchText) {
+        searchResultsBox.style.display = 'none';
+        fetchPostsFromDatabase();
+        return;
+    }
 
     const { data: usersData } = await supabaseClient.from('users').select('*').ilike('username', `%${searchText}%`);
     
@@ -1209,142 +1308,156 @@ if (submitReelBtn) {
 }
 
 // Reels fetch karne aur feed banane ka function
-
 async function fetchReelsFromDatabase() {
     if (!reelsFeed) return;
-    reelsFeed.innerHTML = '<div style="text-align:center; padding:50px; color:#888;">Loading Reels...</div>';
-
-    const { data: reels, error } = await supabaseClient
+    
+    const { data, error } = await supabaseClient
         .from('reels')
         .select('*')
         .order('created_at', { ascending: false });
 
     if (error) {
-        reelsFeed.innerHTML = '<div style="text-align:center; padding:50px; color:red;">Error loading reels</div>';
+        reelsFeed.innerHTML = '<p style="color:#777; text-align:center; margin-top:50px;">Failed to load reels.</p>';
         return;
     }
 
     reelsFeed.innerHTML = '';
+    if (!data || data.length === 0) {
+        reelsFeed.innerHTML = '<p style="color:#777; text-align:center; margin-top:50px;">No reels available yet.</p>';
+        return;
+    }
+
     const myName = localStorage.getItem('currentUsername');
 
-    for (let reel of reels) {
-        // 1. Database se current status fetch karein (Likes & Comments)
+    for (let reel of data) {
         const { count: likesCount } = await supabaseClient.from('reel_likes').select('*', { count: 'exact', head: true }).eq('reel_id', reel.id);
         const { data: myLike } = await supabaseClient.from('reel_likes').select('*').eq('reel_id', reel.id).eq('username', myName);
-        const { data: comments } = await supabaseClient.from('reel_comments').select('*').eq('reel_id', reel.id).order('created_at', { ascending: true });
-
         const isLiked = myLike && myLike.length > 0;
 
+        const { data: comments } = await supabaseClient.from('reel_comments').select('*').eq('reel_id', reel.id).order('created_at', { ascending: true });
+
         const reelCard = document.createElement('div');
-        reelCard.className = 'reel-card'; // CSS class as per previous suggestion
-        reelCard.style.cssText = "height: calc(100vh - 60px); width: 100%; scroll-snap-align: start; position: relative; background: #000; flex-shrink: 0;";
+        reelCard.style.cssText = "width:100%; height:100%; scroll-snap-align:start; position:relative; display:flex; justify-content:center; align-items:center; background:#000; flex-shrink:0;";
 
         reelCard.innerHTML = `
             <video src="${reel.video_url}" style="width:100%; height:100%; object-fit:cover;" loop playsinline></video>
             
-            <!-- Bottom Info -->
-            <div style="position:absolute; bottom:30px; left:15px; right:70px; z-index:5;">
-                <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
-                    <div style="width:32px; height:32px; background:#444; border-radius:50%; display:flex; align-items:center; justify-content:center; border:1px solid #fff; color:#fff;">
-                        ${reel.username.charAt(0).toUpperCase()}
-                    </div>
-                    <b style="color:#fff; text-shadow:1px 1px 2px #000;">${reel.username}</b>
+            <div style="position:absolute; bottom:20px; left:15px; right:70px; z-index:2; text-shadow:0 1px 3px rgba(0,0,0,0.8);">
+                <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+                    <div style="width:32px; height:32px; background:#444; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:14px;">${reel.username.charAt(0).toUpperCase()}</div>
+                    <b style="font-size:14px;">${reel.username}</b>
                 </div>
-                <p style="color:#fff; font-size:14px; text-shadow:1px 1px 2px #000;">${reel.caption || ''}</p>
+                <p style="margin:0; font-size:13px; line-height:1.4;">${reel.caption || ''}</p>
             </div>
 
-            <!-- Side Buttons (Like & Comment) -->
-            <div style="position:absolute; right:15px; bottom:40px; z-index:5; display:flex; flex-direction:column; align-items:center; gap:20px;">
-                <div style="text-align:center; cursor:pointer;" class="like-btn-section">
-                    <i class="fa-${isLiked ? 'solid' : 'regular'} fa-heart" style="font-size:30px; color:${isLiked ? '#ed4956' : '#fff'};"></i>
-                    <p style="font-size:12px; margin-top:5px; color:#fff;" class="like-count-display">${likesCount || 0}</p>
+            <div style="position:absolute; right:15px; bottom:30px; z-index:2; display:flex; flex-direction:column; align-items:center; gap:20px;">
+                <div style="text-align:center; cursor:pointer;" id="reel-like-btn-${reel.id}">
+                    <i class="fa-${isLiked ? 'solid' : 'regular'} fa-heart" style="font-size:28px; color:${isLiked ? '#ed4956' : '#fff'};"></i>
+                    <p style="font-size:11px; margin:3px 0 0 0;" id="reel-likes-count-${reel.id}">${likesCount || 0}</p>
                 </div>
-                <div style="text-align:center; cursor:pointer;" class="comment-btn-section">
-                    <i class="fa-regular fa-comment" style="font-size:30px; color:#fff;"></i>
-                    <p style="font-size:12px; margin-top:5px; color:#fff;">${comments ? comments.length : 0}</p>
+                
+                <div style="text-align:center; cursor:pointer;" id="reel-comment-open-${reel.id}">
+                    <i class="fa-regular fa-comment" style="font-size:26px; color:#fff;"></i>
+                    <p style="font-size:11px; margin:3px 0 0 0;">${comments ? comments.length : 0}</p>
+                </div>
+
+                <div style="text-align:center; cursor:pointer;" id="reel-share-btn-${reel.id}">
+                    <i class="fa-regular fa-paper-plane" style="font-size:24px; color:#fff;"></i>
+                    <p style="font-size:11px; margin:3px 0 0 0;">Share</p>
                 </div>
             </div>
 
-            <!-- Comment Modal (Hidden by default) -->
-            <div class="reel-comment-modal" style="display:none; position:absolute; bottom:0; left:0; width:100%; height:60%; background:#121212; border-radius:15px 15px 0 0; z-index:100; flex-direction:column; border-top:1px solid #333;">
-                <div style="display:flex; justify-content:space-between; padding:15px; border-bottom:1px solid #222;">
-                    <h4 style="margin:0;">Comments</h4>
-                    <button class="close-comment-btn" style="background:none; border:none; color:#fff; font-size:18px;"><i class="fa-solid fa-xmark"></i></button>
+            <div id="reel-comments-modal-${reel.id}" style="display:none; position:absolute; bottom:0; left:0; width:100%; height:60%; background:#121212; border-top-left-radius:16px; border-top-right-radius:16px; z-index:10; flex-direction:column; border-top:1px solid #262626;">
+                <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 15px; border-bottom:1px solid #262626;">
+                    <h4 style="margin:0; font-size:14px;">Comments</h4>
+                    <button id="close-reel-comments-${reel.id}" style="background:transparent; border:none; color:#fff; font-size:16px; cursor:pointer;"><i class="fa-solid fa-xmark"></i></button>
                 </div>
-                <div class="comments-list-area" style="flex:1; overflow-y:auto; padding:15px; font-size:14px;">
-                    ${comments && comments.length > 0 ? comments.map(c => `<div style="margin-bottom:10px;"><b>${c.username}</b>: ${c.comment}</div>`).join('') : '<p style="color:#777; text-align:center;">No comments yet.</p>'}
+                <div id="reel-comments-list-${reel.id}" style="flex:1; overflow-y:auto; padding:10px 15px; display:flex; flex-direction:column; gap:8px; font-size:13px;">
+                    ${comments && comments.length > 0 ? comments.map(c => `<div><b>${c.username}</b>: ${c.comment}</div>`).join('') : '<p style="color:#777; text-align:center; margin-top:20px;">No comments yet.</p>'}
                 </div>
-                <div style="padding:10px; border-top:1px solid #222; display:flex; gap:10px; background:#000;">
-                    <input type="text" class="reel-comment-input" placeholder="Add a comment..." style="flex:1; padding:8px; background:#222; border:none; border-radius:5px; color:#fff;">
-                    <button class="send-comment-btn" style="background:none; border:none; color:#0095f6; font-weight:bold;">Post</button>
+                <div style="padding:10px 15px; border-top:1px solid #262626; display:flex; gap:8px; background:#000;">
+                    <input type="text" id="reel-comment-input-${reel.id}" placeholder="Add a comment..." style="flex:1; padding:8px; background:#1a1a1a; border:1px solid #333; color:#fff; border-radius:6px; font-size:12px;">
+                    <button id="reel-comment-submit-${reel.id}" style="background:transparent; border:none; color:#0095f6; font-weight:bold; cursor:pointer;">Post</button>
                 </div>
             </div>
         `;
 
-        // --- Logic: Like / Unlike ---
-        const likeBtn = reelCard.querySelector('.like-btn-section');
-        const likeIcon = likeBtn.querySelector('i');
-        const likeCountElem = likeBtn.querySelector('.like-count-display');
-
-        likeBtn.onclick = async (e) => {
-            e.stopPropagation();
-            let currentLikes = parseInt(likeCountElem.textContent);
-            
-            if (likeIcon.classList.contains('fa-solid')) {
-                // Unlike Logic
-                likeIcon.classList.replace('fa-solid', 'fa-regular');
-                likeIcon.style.color = '#fff';
-                likeCountElem.textContent = Math.max(0, currentLikes - 1);
-                await supabaseClient.from('reel_likes').delete().eq('reel_id', reel.id).eq('username', myName);
+        const videoElem = reelCard.querySelector('video');
+        
+        videoElem.addEventListener('click', () => {
+            if (videoElem.paused) {
+                videoElem.play();
             } else {
-                // Like Logic (Single like check handles by DB or UI)
-                likeIcon.classList.replace('fa-regular', 'fa-solid');
-                likeIcon.style.color = '#ed4956';
-                likeCountElem.textContent = currentLikes + 1;
-                await supabaseClient.from('reel_likes').insert([{ reel_id: reel.id, username: myName }]);
+                videoElem.pause();
             }
-        };
+        });
 
-        // --- Logic: Comments ---
-        const commentModal = reelCard.querySelector('.reel-comment-modal');
-        const openCommentBtn = reelCard.querySelector('.comment-btn-section');
-        const closeCommentBtn = reelCard.querySelector('.close-comment-btn');
-        const sendCommentBtn = reelCard.querySelector('.send-comment-btn');
-        const commentInput = reelCard.querySelector('.reel-comment-input');
-        const commentsListArea = reelCard.querySelector('.comments-list-area');
-
-        openCommentBtn.onclick = () => { commentModal.style.display = 'flex'; };
-        closeCommentBtn.onclick = () => { commentModal.style.display = 'none'; };
-
-        sendCommentBtn.onclick = async () => {
-            const commentVal = commentInput.value.trim();
-            if(!commentVal) return;
-
-            // UI update (Instant)
-            if(commentsListArea.innerHTML.includes('No comments yet')) commentsListArea.innerHTML = '';
-            commentsListArea.innerHTML += `<div style="margin-bottom:10px;"><b>${myName}</b>: ${commentVal}</div>`;
-            commentsListArea.scrollTop = commentsListArea.scrollHeight;
-            commentInput.value = '';
-
-            // DB update
-            await supabaseClient.from('reel_comments').insert([{ reel_id: reel.id, username: myName, comment: commentVal }]);
-        };
-
-        // --- Video Auto-play logic ---
-        const video = reelCard.querySelector('video');
         const observer = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
-                if (entry.isIntersecting) video.play().catch(() => {});
-                else video.pause();
+                if (entry.isIntersecting) {
+                    videoElem.play().catch(() => {});
+                } else {
+                    videoElem.pause();
+                }
             });
-        }, { threshold: 0.7 });
+        }, { threshold: 0.6 });
         observer.observe(reelCard);
+
+        const likeBtnDiv = reelCard.querySelector(`#reel-like-btn-${reel.id}`);
+        const likeIcon = likeBtnDiv.querySelector('i');
+        const likesCountElem = reelCard.querySelector(`#reel-likes-count-${reel.id}`);
+
+        likeBtnDiv.addEventListener('click', async () => {
+            let currentLikes = parseInt(likesCountElem.textContent);
+            if (likeIcon.classList.contains('fa-solid')) {
+                likeIcon.classList.remove('fa-solid');
+                likeIcon.classList.add('fa-regular');
+                likeIcon.style.color = '#fff';
+                likesCountElem.textContent = Math.max(0, currentLikes - 1);
+                await supabaseClient.from('reel_likes').delete().eq('reel_id', reel.id).eq('username', myName);
+            } else {
+                likeIcon.classList.remove('fa-regular');
+                likeIcon.classList.add('fa-solid');
+                likeIcon.style.color = '#ed4956';
+                likesCountElem.textContent = currentLikes + 1;
+                await supabaseClient.from('reel_likes').insert([{ reel_id: reel.id, username: myName }]);
+            }
+        });
+
+        const commentsModal = reelCard.querySelector(`#reel-comments-modal-${reel.id}`);
+        const openCommentsBtn = reelCard.querySelector(`#reel-comment-open-${reel.id}`);
+        const closeCommentsBtn = reelCard.querySelector(`#close-reel-comments-${reel.id}`);
+        const commentInput = reelCard.querySelector(`#reel-comment-input-${reel.id}`);
+        const commentSubmitBtn = reelCard.querySelector(`#reel-comment-submit-${reel.id}`);
+        const commentsList = reelCard.querySelector(`#reel-comments-list-${reel.id}`);
+
+        openCommentsBtn.addEventListener('click', () => { commentsModal.style.display = 'flex'; });
+        closeCommentsBtn.addEventListener('click', () => { commentsModal.style.display = 'none'; });
+
+        const postReelComment = async () => {
+            const commentText = commentInput.value.trim();
+            if (!commentText) return;
+
+            if (commentsList.innerHTML.includes('No comments yet')) commentsList.innerHTML = '';
+            
+            const newCommentDiv = document.createElement('div');
+            newCommentDiv.innerHTML = `<b>${myName}</b>: ${commentText}`;
+            commentsList.appendChild(newCommentDiv);
+            commentsList.scrollTop = commentsList.scrollHeight;
+            commentInput.value = '';
+
+            await supabaseClient.from('reel_comments').insert([{ reel_id: reel.id, username: myName, comment: commentText }]);
+        };
+
+        commentSubmitBtn.addEventListener('click', postReelComment);
+        commentInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') postReelComment();
+        });
 
         reelsFeed.appendChild(reelCard);
     }
-
 }
-    
+
 const navReelsBtnOriginal = document.getElementById('nav-reels-btn');
 if (navReelsBtnOriginal) {
     navReelsBtnOriginal.addEventListener('click', () => {
@@ -1435,162 +1548,8 @@ async function fetchAndRenderUserReels(username, container) {
             </div>
         `;
         
-        // Yahan par click listener add kiya gaya hai jo detail view khulega
-        item.addEventListener('click', () => {
-            openDetailView('Reel', reel, username);
-        });
-
         container.appendChild(item);
     });
 }
 
-// ================= DETAIL VIEW LOGIC (Add this at the end of script.js) =================
 
-// 1. Naye Elements ko Select karna
-const detailViewContainer = document.getElementById('detail-view-container');
-const detailContent = document.getElementById('detail-content');
-const backFromDetailBtn = document.getElementById('back-from-detail');
-
-// 2. Detail View kholne ka Function
-async function openDetailView(type, data, username) {
-    hideAllViews(); // Saare views chupao
-    if(detailViewContainer) detailViewContainer.classList.add('active'); // Detail screen dikhao
-    
-    const titleElem = document.getElementById('detail-view-title');
-    if(titleElem) titleElem.textContent = type; 
-
-    detailContent.innerHTML = '<p style="text-align:center; padding:20px; color:#888;">Loading...</p>';
-
-    if (type === 'Post') {
-        renderSinglePostInDetail(data);
-    } else {
-        renderSingleReelInDetail(data);
-    }
-}
-
-// Detail view se wapas jane ka button
-const backBtnDetail = document.getElementById('back-from-detail');
-if (backBtnDetail) {
-    backBtnDetail.addEventListener('click', () => {
-        // Detail view ko manually hide kar do
-        document.getElementById('detail-view-container').classList.remove('active');
-        
-        // Profile page wapas kholo
-        const activeProfileUser = localStorage.getItem('activeProfileUser') || localStorage.getItem('currentUsername');
-        openProfilePage(activeProfileUser, true);
-    });
-}
-
-// 4. Single Post Render karne ka tarika
-async function renderSinglePostInDetail(post) {
-    detailContent.innerHTML = '';
-    const myName = localStorage.getItem('currentUsername');
-    
-    // Likes fetch logic
-    const { count: likesCount } = await supabaseClient.from('likes').select('*', { count: 'exact', head: true }).eq('post_id', post.id);
-    
-    const postCard = document.createElement('div');
-    postCard.style.cssText = "background: #000; border-bottom: 1px solid #262626; padding-bottom: 20px;";
-    
-    postCard.innerHTML = `
-        <div class="post-header" style="display: flex; align-items: center; padding: 10px;">
-            <div style="width: 32px; height: 32px; background: #444; border-radius: 50%; margin-right: 10px; display:flex; align-items:center; justify-content:center; color:#fff; font-size:12px;">${post.username.charAt(0).toUpperCase()}</div>
-            <span><b>${post.username}</b></span>
-        </div>
-        <div style="width: 100%; min-height: 300px; background: #111; display:flex; justify-content:center; align-items:center;">
-            <img src="${post.image_url}" style="width: 100%; display:block;">
-        </div>
-        <div style="padding: 12px;">
-            <p style="margin-bottom:5px;"><b>${likesCount || 0} likes</b></p>
-            <p><b>${post.username}</b> ${post.caption || ''}</p>
-        </div>
-    `;
-    detailContent.appendChild(postCard);
-}
-
-// 5. Single Reel Render karne ka tarika
-async function renderSingleReelInDetail(reel) {
-    const myName = localStorage.getItem('currentUsername');
-    
-    // Header mein se purana delete button hatana (taaki duplicate na ho)
-    const oldDelBtn = document.getElementById('detail-delete-btn');
-    if (oldDelBtn) oldDelBtn.remove();
-
-    // Agar ye meri reel hai, toh header mein delete button add karo
-    if (reel.username === myName) {
-        const header = detailViewContainer.querySelector('.insta-header');
-        const delBtn = document.createElement('button');
-        delBtn.id = 'detail-delete-btn';
-        delBtn.innerHTML = '<i class="fa-solid fa-trash-can"></i>';
-        delBtn.style.cssText = "background:transparent; border:none; color:#ed4956; font-size:18px; cursor:pointer; margin-left: auto;";
-        header.appendChild(delBtn);
-
-        // Delete karne ka logic
-        delBtn.onclick = async () => {
-            if (confirm("Kya aap is reel ko delete karna chahte hain?")) {
-                try {
-                    // 1. Supabase se reel delete karna
-                    const { error } = await supabaseClient
-                        .from('reels')
-                        .delete()
-                        .eq('id', reel.id);
-
-                    if (error) throw error;
-
-                    // 2. Reel ke likes aur comments bhi clean up karna (optional but good)
-                    await supabaseClient.from('reel_likes').delete().eq('reel_id', reel.id);
-                    await supabaseClient.from('reel_comments').delete().eq('reel_id', reel.id);
-
-                    alert("Reel delete ho gayi!");
-                    
-                    // 3. Wapas profile par bhejna aur refresh karna
-                    detailViewContainer.classList.remove('active');
-                    openProfilePage(myName, true);
-                } catch (err) {
-                    alert("Delete karne mein problem aayi: " + err.message);
-                }
-            }
-        };
-    }
-
-    // Reel ka content dikhana
-    detailContent.innerHTML = `
-        <div style="width:100%; height:calc(100vh - 120px); background:#000; display:flex; flex-direction:column; justify-content:center;">
-            <video src="${reel.video_url}" style="max-height:100%; width:100%; object-fit:contain;" controls autoplay loop></video>
-        </div>
-        <div style="padding:15px; background:#000; border-top:1px solid #262626;">
-            <p style="font-size:15px;"><b>${reel.username}</b></p>
-            <p style="font-size:14px; color:#ccc; margin-top:5px;">${reel.caption || ''}</p>
-        </div>
-    `;
-}
-//double tap to like //
-function enableDoubleTapLike(element, postId, type = 'post') {
-    let lastTap = 0;
-    element.addEventListener('click', async (e) => {
-        const now = Date.now();
-        if ((now - lastTap) < 300) {
-            // Heart Animation
-            const heart = document.createElement('i');
-            heart.className = "fa-solid fa-heart heart-animation";
-            heart.style.cssText = "position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-size:80px; color:#fff; z-index:100; pointer-events:none;";
-            element.parentElement.appendChild(heart);
-            setTimeout(() => heart.remove(), 800);
-
-            // Database Like
-            const myName = localStorage.getItem('currentUsername');
-            const likeIcon = document.getElementById(`like-btn-${postId}`) || document.querySelector(`#reel-like-btn-${postId}`);
-            const countElem = document.getElementById(`likes-count-${postId}`) || document.querySelector(`#reel-likes-count-${postId}`);
-
-            if (likeIcon && !likeIcon.classList.contains('fa-solid')) {
-                likeIcon.classList.replace('fa-regular', 'fa-solid');
-                likeIcon.style.color = '#ed4956';
-                if(countElem) countElem.textContent = parseInt(countElem.textContent) + 1;
-                const table = (type === 'post') ? 'likes' : 'reel_likes';
-                const idCol = (type === 'post') ? 'post_id' : 'reel_id';
-                await supabaseClient.from(table).insert([{ [idCol]: postId, username: myName }]);
-            }
-        }
-        lastTap = now;
-    });
-        }
