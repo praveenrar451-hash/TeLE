@@ -1,5 +1,5 @@
 // ==========================================
-// INSTA-TELE APP SCRIPT.JS (FINAL CHAT FIX)
+// INSTA-TELE APP SCRIPT.JS (BUTTON CLICK FIX)
 // ==========================================
 
 const SUPABASE_URL = 'https://ydjbojsqeujahgqinfmk.supabase.co';
@@ -923,13 +923,14 @@ async function openChatWindow(receiverName) {
         };
     }
 
-    // ROBUST SEND MESSAGE HANDLER
-    const handleSendMessage = async () => {
-        if (!chatInput) return;
-        const text = chatInput.value.trim();
+    // 100% WORKING SEND FUNCTION ASSIGNED DIRECTLY TO DOM ELEMENTS
+    window.executeSendMessage = async () => {
+        const inputElem = document.getElementById('chat-msg-input');
+        if (!inputElem) return;
+        const text = inputElem.value.trim();
         if (!text) return;
 
-        chatInput.value = '';
+        inputElem.value = '';
 
         if (messagesArea.innerHTML.includes('No messages yet')) {
             messagesArea.innerHTML = '';
@@ -947,11 +948,13 @@ async function openChatWindow(receiverName) {
     };
 
     if (sendBtn) {
-        sendBtn.onclick = handleSendMessage;
+        sendBtn.onclick = window.executeSendMessage;
     }
     if (chatInput) {
         chatInput.onkeypress = (e) => {
-            if (e.key === 'Enter') handleSendMessage();
+            if (e.key === 'Enter') {
+                window.executeSendMessage();
+            }
         };
     }
 }
@@ -973,4 +976,4 @@ function appendChatMessage(msg) {
 
     messagesArea.appendChild(msgBubble);
     messagesArea.scrollTop = messagesArea.scrollHeight;
-}
+            }
