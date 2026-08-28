@@ -78,10 +78,27 @@
             <div id="chat-container" class="app-view">
                 <div class="top-header">
                     <i class="fa-solid fa-arrow-left" onclick="switchView('insta-feed-container')" style="cursor:pointer; font-size:18px;"></i>
-                    <b id="chat-header-title" style="font-size:16px;">Messages</b>
+                    <b style="font-size:16px;">Messages</b>
                     <div></div>
                 </div>
                 <div id="chat-users-list" style="padding: 10px 0;"></div>
+            </div>
+
+            <!-- VIEW 5.1: ACTUAL CHAT ROOM -->
+            <div id="chatroom-container" class="app-view">
+                <div class="top-header">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <i class="fa-solid fa-arrow-left" onclick="openChatList()" style="cursor:pointer; font-size:18px;"></i>
+                        <div id="chatroom-avatar" class="avatar" style="width:32px; height:32px; font-size:12px;">U</div>
+                        <b id="chatroom-title" style="font-size:15px;">username</b>
+                    </div>
+                    <div></div>
+                </div>
+                <div id="chatroom-messages" style="flex:1; padding:16px; overflow-y:auto; display:flex; flex-direction:column; gap:10px;"></div>
+                <div class="chat-input-bar">
+                    <input type="text" id="chatroom-input" placeholder="Message..." class="insta-input" style="margin:0; flex:1;">
+                    <button onclick="sendChatMessage()" style="background:#0095f6; border:none; color:#fff; padding:0 16px; border-radius:6px; font-weight:600; cursor:pointer; height:42px;">Send</button>
+                </div>
             </div>
 
             <!-- VIEW 6: OTHER USER PROFILE VIEW -->
