@@ -1,192 +1,108 @@
 // ==========================================
-// INSTAGRAM CLONE - MASTER SCRIPT (FULL CODE)
+// INSTAGRAM ULTRA PRO - MASTER SCRIPT
 // ==========================================
 
-// 1. Global View Switch & State Memory
-const originalSwitchView = window.switchView;
-window.switchView = function(viewId) {
-    if (typeof originalSwitchView === 'function') {
-        originalSwitchView(viewId);
-    }
-    localStorage.setItem('activeAppView', viewId);
-    setTimeout(renderAllAvatars, 200);
-};
+const SUPABASE_URL = "https://ydjbojsqeujahgqinfmk.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_jxLWxWU876psNuIx-P7cCw_NR9JHzyI";
 
-// Page load hone par active view aur avatars restore karna
+let supabaseClient = null;
+if (window.supabase) {
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    window.supabaseClient = supabaseClient;
+}
+
+// Session Check on Load
 window.addEventListener('DOMContentLoaded', () => {
-    const lastActiveView = localStorage.getItem('activeAppView');
-    if (lastActiveView && document.getElementById(lastActiveView)) {
-        setTimeout(() => {
-            switchView(lastActiveView);
-        }, 150);
+    const activeUser = localStorage.getItem('currentUsername');
+    if (activeUser) {
+        document.getElementById('auth-container').classList.remove('active');
+        document.getElementById('main-app-content').style.display = 'flex';
+        
+        const lastView = localStorage.getItem('activeAppView') || 'insta-feed-container';
+        switchView(lastView);
+        loadUserData(activeUser);
+        loadFeedPosts();
     }
-    
-    // Load own profile data
-    const currentUname = localStorage.getItem('currentUsername');
-    if (currentUname) {
-        const nameEl = document.getElementById('my-profile-username');
-        const dispEl = document.getElementById('profile-display-name');
-        if (nameEl) nameEl.textContent = currentUname;
-        if (dispEl) dispEl.textContent = currentUname;
-    }
-    
-    renderAllAvatars();
 });
 
-// 2. Global Avatar (DP) Renderer across all sections
-window.renderAllAvatars = function() {
-    document.querySelectorAll('.avatar, [data-username]').forEach(el => {
-        let username = el.getAttribute('data-username');
-        if (!username) {
-            const parent = el.closest('[data-username]') || el.closest('.chat-user-row') || el.closest('.post-card');
-            if (parent) username = parent.getAttribute('data-username');
-        }
-
-        if (username) {
-            const dpUrl = localStorage.getItem(`userAvatar_${username}`);
-            const targetAvatar = el.classList.contains('avatar') ? el : el.querySelector('.avatar');
-            
-            if (targetAvatar && dpUrl) {
-                targetAvatar.style.backgroundImage = `url('${dpUrl}')`;
-                targetAvatar.style.backgroundSize = 'cover';
-                targetAvatar.style.backgroundPosition = 'center';
-                targetAvatar.textContent = '';
-            }
-        }
-    });
-};
-
-// 3. Open Any User's Profile (Instagram Style)
-window.openUserProfile = async function(targetUsername) {
-    const myName = localStorage.getItem('currentUsername');
-    if (!targetUsername) return;
-
-    if (targetUsername === myName) {
-        switchView('profile-container');
+// Authentication Login / Signup
+async function handleAuthLogin() {
+    const usernameInput = document.getElementById('auth-username').value.trim();
+    if (!usernameInput) {
+        alert("Please enter a valid username!");
         return;
     }
 
-    let view = document.getElementById('other-profile-container');
-    if (!view) {
-        view = document.createElement('div');
-        view.id = 'other-profile-container';
-        view.className = 'app-view';
-        document.getElementById('app-container').appendChild(view);
-    }
-
-    document.querySelectorAll('.app-view').forEach(v => v.classList.remove('active'));
-    view.classList.add('active');
-    view.style.display = 'block';
-
-    view.innerHTML = `<div style="text-align:center; color:#777; padding:50px;">Loading profile...</div>`;
-
-    let isFollowing = false;
-    let postCount = 0;
-    let followersCount = 0;
-    let followingCount = 0;
-    let targetBio = "Instagram User 🚀";
-
-    if (window.supabaseClient) {
-        // Check follow status
-        const { data: followData } = await window.supabaseClient
-            .from('follows')
+    if (supabaseClient) {
+        // Check or insert user in DB
+        const { data, error } = await supabaseClient
+            .from('users')
             .select('*')
-            .eq('follower', myName)
-            .eq('following', targetUsername);
-        
-        if (followData && followData.length > 0) isFollowing = true;
+            .eq('username', usernameInput);
 
-        // Fetch counts
-        const { count: pCount } = await window.supabaseClient.from('posts').select('*', { count: 'exact', head: true }).eq('username', targetUsername);
-        postCount = pCount || 0;
-
-        const { count: fCount } = await window.supabaseClient.from('follows').select('*', { count: 'exact', head: true }).eq('following', targetUsername);
-        followersCount = fCount || 0;
-
-        const { count: fgCount } = await window.supabaseClient.from('follows').select('*', { count: 'exact', head: true }).eq('follower', targetUsername);
-        followingCount = fgCount || 0;
-
-        // Fetch Bio
-        const { data: userData } = await window.supabaseClient.from('users').select('bio').eq('username', targetUsername).single();
-        if (userData && userData.bio) targetBio = userData.bio;
+        if (!data || data.length === 0) {
+            await supabaseClient.from('users').insert([{ username: usernameInput, bio: 'InstaUltra Creator 🚀' }]);
+        }
     }
 
-    const dp = localStorage.getItem(`userAvatar_${targetUsername}`) || '';
-    const dpStyle = dp ? `background-image: url('${dp}'); background-size: cover; background-position: center;` : '';
+    localStorage.setItem('currentUsername', usernameInput);
+    document.getElementById('auth-container').classList.remove('active');
+    document.getElementById('main-app-content').style.display = 'flex';
+    switchView('insta-feed-container');
+    loadUserData(usernameInput);
+    loadFeedPosts();
+}
 
-    view.innerHTML = `
-        <div class="top-header">
-            <div style="display:flex; align-items:center; gap:15px;">
-                <i class="fa-solid fa-arrow-left" onclick="switchView('insta-feed-container')" style="cursor:pointer; font-size:18px;"></i>
-                <h2 style="font-size:16px;">${targetUsername}</h2>
-            </div>
-        </div>
-        <div style="padding:15px 16px;">
-            <div style="display:flex; align-items:center; justify-content:space-between;">
-                <div class="avatar" style="width:80px; height:80px; font-size:30px; ${dpStyle}">${dp ? '' : targetUsername.charAt(0).toUpperCase()}</div>
-                <div style="display:flex; gap:15px; text-align:center; flex:1; justify-content:space-around; margin-left:15px;">
-                    <div><b>${postCount}</b><p style="font-size:12px; color:#aaa;">Posts</p></div>
-                    <div><b>${followersCount}</b><p style="font-size:12px; color:#aaa;">Followers</p></div>
-                    <div><b>${followingCount}</b><p style="font-size:12px; color:#aaa;">Following</p></div>
-                </div>
-            </div>
-            <div style="margin-top:12px;">
-                <b style="font-size:14px;">${targetUsername}</b>
-                <p style="font-size:13px; color:#ddd; margin-top:2px;">${targetBio}</p>
-            </div>
-            <div style="display:flex; gap:8px; margin-top:15px;">
-                <button id="dynamic-follow-btn" onclick="toggleFollowUser('${targetUsername}')" style="flex:1; background:${isFollowing ? '#262626' : '#0095f6'}; color:#fff; border:none; padding:8px; border-radius:6px; font-weight:600; font-size:13px; cursor:pointer;">${isFollowing ? 'Following' : 'Follow'}</button>
-                <button onclick="switchView('chat-container'); setTimeout(() => openChatWindow('${targetUsername}'), 200);" style="flex:1; background:#262626; color:#fff; border:none; padding:8px; border-radius:6px; font-weight:600; font-size:13px; cursor:pointer;">Message</button>
-            </div>
-        </div>
-    `;
+function handleLogout() {
+    localStorage.removeItem('currentUsername');
+    location.reload();
+}
+
+// View Switcher with Memory
+window.switchView = function(viewId) {
+    document.querySelectorAll('.app-view').forEach(v => v.classList.remove('active', 'active-view'));
+    const target = document.getElementById(viewId);
+    if (target) {
+        target.classList.add('active', 'active-view');
+        localStorage.setItem('activeAppView', viewId);
+    }
+    if (viewId === 'insta-feed-container') loadFeedPosts();
 };
 
-// 4. Follow / Unfollow Toggle Handler
-window.toggleFollowUser = async function(targetUsername) {
-    const myName = localStorage.getItem('currentUsername');
-    const btn = document.getElementById('dynamic-follow-btn');
-    if (!window.supabaseClient || !btn || !myName) return;
+// Load User Data & Profile
+async function loadUserData(username) {
+    const nameEls = document.querySelectorAll('#my-profile-username, #profile-display-name');
+    nameEls.forEach(el => { if(el) el.textContent = username; });
 
-    if (btn.textContent === 'Follow') {
-        const { error } = await window.supabaseClient.from('follows').insert([{ follower: myName, following: targetUsername }]);
-        if (!error) {
-            btn.textContent = 'Following';
-            btn.style.background = '#262626';
-        } else {
-            alert("Follow error: " + error.message);
-        }
-    } else {
-        const { error } = await window.supabaseClient.from('follows').delete().eq('follower', myName).eq('following', targetUsername);
-        if (!error) {
-            btn.textContent = 'Follow';
-            btn.style.background = '#0095f6';
-        } else {
-            alert("Unfollow error: " + error.message);
-        }
+    const savedAvatar = localStorage.getItem(`userAvatar_${username}`);
+    const myAvatarDiv = document.getElementById('my-profile-avatar');
+    if (savedAvatar && myAvatarDiv) {
+        myAvatarDiv.style.backgroundImage = `url('${savedAvatar}')`;
+        myAvatarDiv.textContent = '';
+    } else if (myAvatarDiv) {
+        myAvatarDiv.textContent = username.charAt(0).toUpperCase();
     }
-};
 
-// 5. Clickable Usernames across the app to open profile
-document.addEventListener('click', (e) => {
-    const userElement = e.target.closest('[data-username], .chat-user-row');
-    if (userElement) {
-        let username = userElement.getAttribute('data-username');
-        if (!username && userElement.classList.contains('chat-user-row')) {
-            username = userElement.querySelector('b')?.textContent;
-        }
-        
-        const myName = localStorage.getItem('currentUsername');
-        if (username && username.trim() !== myName && !e.target.closest('button') && !e.target.closest('input')) {
-            if (username.trim().length > 0) {
-                openUserProfile(username.trim());
-            }
-        }
+    if (supabaseClient) {
+        // Fetch posts count
+        const { count: pCount } = await supabaseClient.from('posts').select('*', { count: 'exact', head: true }).eq('username', username);
+        const pCountEl = document.getElementById('profile-posts-count');
+        if (pCountEl) pCountEl.textContent = pCount || 0;
+
+        // Fetch followers count
+        const { count: fCount } = await supabaseClient.from('follows').select('*', { count: 'exact', head: true }).eq('following', username);
+        const fCountEl = document.getElementById('profile-followers-count');
+        if (fCountEl) fCountEl.textContent = fCount || 0;
+
+        // Fetch following count
+        const { count: fgCount } = await supabaseClient.from('follows').select('*', { count: 'exact', head: true }).eq('follower', username);
+        const fgCountEl = document.getElementById('profile-following-count');
+        if (fgCountEl) fgCountEl.textContent = fgCount || 0;
     }
-});
+}
 
-// 6. Profile Picture Cropping & Upload Handler
-window.handleImageCropSelection = function(event) {
+// Profile Picture Upload Handler
+function handleProfilePicUpload(event) {
     const file = event.target.files[0];
     if (!file) return;
 
@@ -194,58 +110,136 @@ window.handleImageCropSelection = function(event) {
     reader.onload = function(e) {
         const imgSrc = e.target.result;
         const username = localStorage.getItem('currentUsername');
-        
-        // Save locally & globally
         localStorage.setItem(`userAvatar_${username}`, imgSrc);
         
-        const myAvatar = document.getElementById('my-profile-avatar');
-        if (myAvatar) {
-            myAvatar.style.backgroundImage = `url('${imgSrc}')`;
-            myAvatar.style.backgroundSize = 'cover';
-            myAvatar.style.backgroundPosition = 'center';
-            myAvatar.textContent = '';
+        const avatarDiv = document.getElementById('my-profile-avatar');
+        if (avatarDiv) {
+            avatarDiv.style.backgroundImage = `url('${imgSrc}')`;
+            avatarDiv.textContent = '';
         }
-        renderAllAvatars();
         alert("Profile picture updated successfully!");
     };
     reader.readAsDataURL(file);
-};
+}
 
-// 7. Profile Edit & Save Changes
-window.saveProfileChanges = async function() {
-    const oldUname = localStorage.getItem('currentUsername');
-    const newUnameInput = document.getElementById('edit-name-input');
-    const newBioInput = document.getElementById('edit-bio-input');
-    
-    if (!newUnameInput) return;
-    const newUname = newUnameInput.value.trim();
-    const newBio = newBioInput ? newBioInput.value.trim() : '';
+// Create New Post
+async function submitNewPost() {
+    const imgUrl = document.getElementById('create-img-url').value.trim();
+    const caption = document.getElementById('create-caption').value.trim();
+    const username = localStorage.getItem('currentUsername');
 
-    if (!newUname) {
-        alert("Username cannot be empty!");
+    if (!imgUrl) {
+        alert("Please provide an image URL!");
         return;
     }
 
-    if (window.supabaseClient) {
-        const { error } = await window.supabaseClient
-            .from('users')
-            .update({ username: newUname, bio: newBio })
-            .eq('username', oldUname);
-
+    if (supabaseClient) {
+        const { error } = await supabaseClient.from('posts').insert([{ username, image_url: imgUrl, caption }]);
         if (error) {
-            alert("Error updating profile: " + error.message);
+            alert("Error posting: " + error.message);
             return;
         }
     }
 
-    localStorage.setItem('currentUsername', newUname);
-    alert("Profile updated successfully!");
-    location.reload();
-};
+    alert("Post shared successfully!");
+    document.getElementById('create-img-url').value = '';
+    document.getElementById('create-caption').value = '';
+    switchView('insta-feed-container');
+}
 
-// 8. Continuous Live Background Sync Interval
-setInterval(() => {
-    if (typeof window.renderAllAvatars === 'function') {
-        window.renderAllAvatars();
+// Load Feed Posts
+async function loadFeedPosts() {
+    const feedList = document.getElementById('feed-posts-list');
+    if (!feedList) return;
+
+    feedList.innerHTML = `<div style="text-align:center; padding:30px; color:#777;">Loading feed...</div>`;
+
+    let posts = [];
+    if (supabaseClient) {
+        const { data, error } = await supabaseClient.from('posts').select('*').order('created_at', { ascending: false });
+        if (data) posts = data;
     }
-}, 1000);
+
+    if (posts.length === 0) {
+        feedList.innerHTML = `<div style="text-align:center; padding:40px; color:#777;">No posts yet. Be the first to share one!</div>`;
+        return;
+    }
+
+    feedList.innerHTML = '';
+    posts.forEach(post => {
+        const userAvatar = localStorage.getItem(`userAvatar_${post.username}`) || '';
+        const avatarStyle = userAvatar ? `background-image: url('${userAvatar}'); background-size: cover;` : '';
+
+        const postCard = document.createElement('div');
+        postCard.className = 'post-card';
+        postCard.innerHTML = `
+            <div class="post-header">
+                <div class="avatar" style="width: 32px; height: 32px; font-size: 14px; ${avatarStyle}">${userAvatar ? '' : post.username.charAt(0).toUpperCase()}</div>
+                <b style="font-size: 14px; cursor: pointer;" onclick="openUserProfile('${post.username}')">${post.username}</b>
+            </div>
+            <img src="${post.image_url}" class="post-img" alt="Post Image">
+            <div class="post-actions">
+                <div>
+                    <i class="fa-regular fa-heart" style="margin-right: 15px;" onclick="toggleLikePost(this)"></i>
+                    <i class="fa-regular fa-comment" style="margin-right: 15px;"></i>
+                    <i class="fa-regular fa-paper-plane"></i>
+                </div>
+                <i class="fa-regular fa-bookmark" onclick="toggleBookmarkPost(this)"></i>
+            </div>
+            <div class="post-details">
+                <p><b>${post.username}</b> ${post.caption || ''}</p>
+            </div>
+        `;
+        feedList.appendChild(postCard);
+    });
+}
+
+// Search Users
+async function handleUserSearch(query) {
+    const resultsList = document.getElementById('search-results-list');
+    if (!query.trim()) {
+        resultsList.innerHTML = '';
+        return;
+    }
+
+    if (supabaseClient) {
+        const { data } = await supabaseClient.from('users').select('username, bio').ilike('username', `%${query}%`);
+        resultsList.innerHTML = '';
+        if (data && data.length > 0) {
+            data.forEach(user => {
+                const row = document.createElement('div');
+                row.style.cssText = "display:flex; align-items:center; padding:10px 16px; gap:12px; cursor:pointer; border-bottom:1px solid rgba(255,255,255,0.05);";
+                row.onclick = () => openUserProfile(user.username);
+                row.innerHTML = `
+                    <div class="avatar" style="width:40px; height:40px;">${user.username.charAt(0).toUpperCase()}</div>
+                    <div>
+                        <b>${user.username}</b>
+                        <p style="font-size:12px; color:#888;">${user.bio || 'Instagram User'}</p>
+                    </div>
+                `;
+                resultsList.appendChild(row);
+            });
+        }
+    }
+}
+
+// Open Any User Profile (Instagram Style)
+async function openUserProfile(targetUsername) {
+    const myName = localStorage.getItem('currentUsername');
+    if (targetUsername === myName) {
+        switchView('profile-container');
+        return;
+    }
+    alert(`Opening profile of: ${targetUsername}`);
+}
+
+function toggleLikePost(icon) {
+    icon.classList.toggle('fa-regular');
+    icon.classList.toggle('fa-solid');
+    icon.style.color = icon.classList.contains('fa-solid') ? '#ed4956' : '#fff';
+}
+
+function toggleBookmarkPost(icon) {
+    icon.classList.toggle('fa-regular');
+    icon.classList.toggle('fa-solid');
+}
