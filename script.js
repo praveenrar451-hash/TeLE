@@ -565,4 +565,4 @@ async function sendChatMessage() {
 
 function openChatWithUser() {
     openChatWith(viewingTargetUser);
-                                                                 }
+    }
