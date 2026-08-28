@@ -726,3 +726,275 @@ function toggleCamera(btn) {
 function openChatWithUser() {
     openChatWith(viewingTargetUser);
                 }
+// ==========================================
+// WEBRTC & SUPABASE REALTIME CALLING SYSTEM
+// ==========================================
+
+let localStream = null;
+let remoteStream = null;
+let peerConnection = null;
+let callChannel = null;
+
+const rtcConfig = {
+    iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' }
+    ]
+};
+
+// Initialize Call Signaling Channel based on active chat rooms
+function initCallSignaling() {
+    if (!supabaseClient) return;
+    if (callChannel) {
+        supabaseClient.removeChannel(callChannel);
+    }
+
+    const currentUser = localStorage.getItem('currentUsername');
+    // Create a unique deterministic room name for both users
+    const roomName = `call_room_${[currentUser, activeChatUser].sort().join('_')}`;
+
+    callChannel = supabaseClient.channel(roomName, {
+        config: { broadcast: { self: false } }
+    });
+
+    callChannel
+        .on('broadcast', { event: 'incoming-call' }, async ({ payload }) => {
+            if (payload.receiver === currentUser) {
+                // Incoming call notification / prompt on receiver side
+                const accept = confirm(`Incoming ${payload.type.toUpperCase()} Call from ${payload.caller}! Accept?`);
+                if (accept) {
+                    showCallUI(payload.type, payload.caller, true);
+                    await setupWebRTCStream(payload.type === 'video');
+                    
+                    // Send accept signal back
+                    callChannel.send({
+                        type: 'broadcast',
+                        event: 'call-accepted',
+                        payload: { responder: currentUser }
+                    });
+                } else {
+                    callChannel.send({
+                        type: 'broadcast',
+                        event: 'call-rejected',
+                        payload: { responder: currentUser }
+                    });
+                }
+            }
+        })
+        .on('broadcast', { event: 'call-accepted' }, async () => {
+            const statusText = document.getElementById('call-status-text');
+            if (statusText) statusText.textContent = "Connected";
+            await createAndSendOffer();
+        })
+        .on('broadcast', { event: 'call-rejected' }, () => {
+            alert("Call declined.");
+            endCallScreen();
+        })
+        .on('broadcast', { event: 'webrtc-offer' }, async ({ payload }) => {
+            if (!peerConnection) createPeerConnection();
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.offer));
+            const answer = await peerConnection.createAnswer();
+            await peerConnection.setLocalDescription(answer);
+
+            callChannel.send({
+                type: 'broadcast',
+                event: 'webrtc-answer',
+                payload: { answer }
+            });
+        })
+        .on('broadcast', { event: 'webrtc-answer' }, async ({ payload }) => {
+            if (peerConnection) {
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.answer));
+            }
+        })
+        .on('broadcast', { event: 'webrtc-ice' }, async ({ payload }) => {
+            if (peerConnection && payload.candidate) {
+                try {
+                    await peerConnection.addIceCandidate(new RTCIceCandidate(payload.candidate));
+                } catch (e) {
+                    console.error("Error adding received ice candidate", e);
+                }
+            }
+        })
+        .subscribe();
+}
+
+async function setupWebRTCStream(isVideo) {
+    try {
+        localStream = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+            video: isVideo ? { width: 1280, height: 720 } : false
+        });
+
+        const localVideoEl = document.getElementById('local-video-preview');
+        if (localVideoEl) {
+            localVideoEl.srcObject = localStream;
+        }
+    } catch (err) {
+        console.error("Media access denied:", err);
+        alert("Could not access camera or microphone.");
+    }
+}
+
+function createPeerConnection() {
+    peerConnection = new RTCPeerConnection(rtcConfig);
+
+    if (localStream) {
+        localStream.getTracks().forEach(track => {
+            peerConnection.addTrack(track, localStream);
+        });
+    }
+
+    remoteStream = new MediaStream();
+    const remoteVideoEl = document.getElementById('remote-video-display');
+    if (remoteVideoEl) {
+        remoteVideoEl.srcObject = remoteStream;
+    }
+
+    peerConnection.ontrack = event => {
+        event.streams[0].getTracks().forEach(track => {
+            remoteStream.addTrack(track);
+        });
+    };
+
+    peerConnection.onicecandidate = event => {
+        if (event.candidate && callChannel) {
+            callChannel.send({
+                type: 'broadcast',
+                event: 'webrtc-ice',
+                payload: { candidate: event.candidate }
+            });
+        }
+    };
+}
+
+async function createAndSendOffer() {
+    createPeerConnection();
+    const offer = await peerConnection.createOffer();
+    await peerConnection.setLocalDescription(offer);
+
+    callChannel.send({
+        type: 'broadcast',
+        event: 'webrtc-offer',
+        payload: { offer }
+    });
+}
+
+// Override / Update existing call triggers
+window.startAudioCall = async function() {
+    if (!activeChatUser) {
+        alert("Open a chat to call!");
+        return;
+    }
+    initCallSignaling();
+    showCallUI('audio', activeChatUser, false);
+    await setupWebRTCStream(false);
+
+    const currentUser = localStorage.getItem('currentUsername');
+    setTimeout(() => {
+        callChannel.send({
+            type: 'broadcast',
+            event: 'incoming-call',
+            payload: { caller: currentUser, receiver: activeChatUser, type: 'audio' }
+        });
+    }, 1000);
+};
+
+window.startVideoCall = async function() {
+    if (!activeChatUser) {
+        alert("Open a chat to call!");
+        return;
+    }
+    initCallSignaling();
+    showCallUI('video', activeChatUser, false);
+    await setupWebRTCStream(true);
+
+    const currentUser = localStorage.getItem('currentUsername');
+    setTimeout(() => {
+        callChannel.send({
+            type: 'broadcast',
+            event: 'incoming-call',
+            payload: { caller: currentUser, receiver: activeChatUser, type: 'video' }
+        });
+    }, 1000);
+};
+
+// Enhanced Call UI with Video Support Elements
+function showCallUI(type, targetUser, isReceiver) {
+    let callOverlay = document.getElementById('instagram-call-overlay');
+    if (!callOverlay) {
+        callOverlay = document.createElement('div');
+        callOverlay.id = 'instagram-call-overlay';
+        callOverlay.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:#1a1a1a; z-index:9999; display:flex; flex-direction:column; justify-content:space-between; align-items:center; padding:40px 20px; color:#fff;";
+        document.body.appendChild(callOverlay);
+    }
+
+    const titleType = isReceiver ? `Incoming ${type} call...` : 'Calling...';
+
+    callOverlay.innerHTML = `
+        <div style="position:relative; width:100%; height:100%; display:flex; flex-direction:column; justify-content:space-between; align-items:center;">
+            <!-- Remote Video Fullscreen or Background -->
+            <video id="remote-video-display" autoplay playsinline style="position:absolute; top:0; left:0; width:100%; height:100%; object-fit:cover; z-index:1; background:#000;"></video>
+            
+            <!-- Top Caller Details Layer -->
+            <div style="z-index:2; display:flex; flex-direction:column; align-items:center; gap:10px; margin-top:40px; background:rgba(0,0,0,0.4); padding:15px 30px; border-radius:20px;">
+                <div class="avatar" style="width:70px; height:70px; font-size:28px; background-color:#363636;">${targetUser ? targetUser.charAt(0).toUpperCase() : 'U'}</div>
+                <h2 style="font-size:20px; font-weight:500; margin:0;">${targetUser || 'User'}</h2>
+                <p style="font-size:13px; color:#ccc; margin:0;" id="call-status-text">${titleType}</p>
+            </div>
+
+            <!-- Local Small Video Preview (if video call) -->
+            ${type === 'video' ? `<video id="local-video-preview" autoplay playsinline muted style="position:absolute; top:20px; right:20px; width:100px; height:150px; object-fit:cover; border-radius:12px; z-index:3; border:2px solid #fff;"></video>` : ''}
+
+            <!-- Bottom Action Buttons -->
+            <div style="z-index:2; display:flex; gap:30px; margin-bottom:40px; align-items:center;">
+                <button onclick="toggleCallMute(this)" style="width:55px; height:55px; border-radius:50%; background:#262626; border:none; color:#fff; font-size:20px; cursor:pointer;"><i class="fa-solid fa-microphone"></i></button>
+                <button onclick="endCallScreen()" style="width:65px; height:65px; border-radius:50%; background:#ed4956; border:none; color:#fff; font-size:24px; cursor:pointer;"><i class="fa-solid fa-phone-slash"></i></button>
+                ${type === 'video' ? `<button onclick="toggleCamera(this)" style="width:55px; height:55px; border-radius:50%; background:#262626; border:none; color:#fff; font-size:20px; cursor:pointer;"><i class="fa-solid fa-video"></i></button>` : ''}
+            </div>
+        </div>
+    `;
+    callOverlay.style.display = 'flex';
+}
+
+window.endCallScreen = function() {
+    if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+        localStream = null;
+    }
+    if (peerConnection) {
+        peerConnection.close();
+        peerConnection = null;
+    }
+    if (callChannel && supabaseClient) {
+        supabaseClient.removeChannel(callChannel);
+        callChannel = null;
+    }
+    const callOverlay = document.getElementById('instagram-call-overlay');
+    if (callOverlay) {
+        callOverlay.style.display = 'none';
+        callOverlay.remove();
+    }
+}
+
+window.toggleCallMute = function(btn) {
+    if (localStream) {
+        const audioTrack = localStream.getAudioTracks()[0];
+        if (audioTrack) {
+            audioTrack.enabled = !audioTrack.enabled;
+            btn.style.background = audioTrack.enabled ? '#262626' : '#fff';
+            btn.style.color = audioTrack.enabled ? '#fff' : '#000';
+        }
+    }
+}
+
+window.toggleCamera = function(btn) {
+    if (localStream) {
+        const videoTrack = localStream.getVideoTracks()[0];
+        if (videoTrack) {
+            videoTrack.enabled = !videoTrack.enabled;
+            btn.style.background = videoTrack.enabled ? '#262626' : '#fff';
+            btn.style.color = videoTrack.enabled ? '#fff' : '#000';
+        }
+    }
+}
