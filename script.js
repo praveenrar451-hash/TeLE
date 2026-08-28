@@ -1375,3 +1375,195 @@ if (typeof fetchTelegramChats === 'function') {
     // Chat list ko fast load karne ke liye background optimization
     console.log("Chat speed enhancer active!");
 }
+// ==========================================
+// ULTIMATE INSTANT REALTIME & CACHE PATCH
+// ==========================================
+console.log("Ultimate Realtime & Instant Cache Patch Loaded!");
+
+// 1. INSTANT REAL-TIME POSTS SYNC (Bina refresh kiye live feed mein post dikhna)
+if (window.supabaseClient) {
+    // Purana koi channel ho toh hata kar naya live listener lagayein
+    if (window.liveFeedChannel) {
+        supabaseClient.removeChannel(window.liveFeedChannel);
+    }
+
+    window.liveFeedChannel = supabaseClient
+        .channel('public:posts_realtime')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, payload => {
+            console.log("New post received live:", payload.new);
+            // Agar user feed view par hai, toh nayi post ko turant top par inject kar do
+            if (currentActiveView === 'insta-feed-container') {
+                const feedArea = document.getElementById('feed-posts-area');
+                if (feedArea) {
+                    // Agar "No posts yet" likha ho toh hata do
+                    if (feedArea.innerHTML.includes('No posts yet') || feedArea.innerHTML.includes('Loading')) {
+                        feedArea.innerHTML = '';
+                    }
+                    
+                    const post = payload.new;
+                    const myName = localStorage.getItem('currentUsername');
+                    
+                    const postCard = document.createElement('div');
+                    postCard.style.cssText = "background:#000; border-bottom:1px solid #262626; margin-bottom:12px; animation: fadeIn 0.3s ease;";
+                    postCard.innerHTML = `
+                        <div style="display:flex; align-items:center; justify-content:space-between; padding:10px 12px;">
+                            <div style="display:flex; align-items:center; gap:10px; cursor:pointer;" class="post-user-header">
+                                <div style="width:32px; height:32px; background:#444; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:13px;">${post.username.charAt(0).toUpperCase()}</div>
+                                <b style="font-size:13px;">${post.username}</b>
+                            </div>
+                        </div>
+                        <div style="width:100%; max-height:450px; background:#111; overflow:hidden; display:flex; justify-content:center; align-items:center;">
+                            ${post.image_url ? `<img src="${post.image_url}" loading="lazy" style="width:100%; object-fit:cover;" onerror="this.style.display='none';">` : ''}
+                        </div>
+                        <div style="padding:10px 12px;">
+                            <div style="display:flex; gap:15px; font-size:22px; margin-bottom:8px;">
+                                <i class="fa-regular fa-heart post-like-btn" style="cursor:pointer;"></i>
+                                <i class="fa-regular fa-comment" style="cursor:pointer;"></i>
+                            </div>
+                            <p style="font-size:13px; margin-bottom:5px;"><b class="likes-count">0</b> likes</p>
+                            <p style="font-size:13px; margin-bottom:8px;"><b>${post.username}</b> ${post.caption || ''}</p>
+                            <div class="comments-container" style="font-size:12px; color:#aaa; margin-bottom:6px;"></div>
+                            <div style="display:flex; border-top:1px solid #262626; padding-top:8px; margin-top:5px;">
+                                <input type="text" class="comment-input" placeholder="Add a comment..." style="flex:1; background:transparent; border:none; color:#fff; font-size:12px; outline:none;">
+                                <button class="comment-submit" style="background:transparent; border:none; color:#0095f6; font-weight:bold; font-size:12px; cursor:pointer;">Post</button>
+                            </div>
+                        </div>
+                    `;
+                    // Sabse upar insert karein (prepend)
+                    feedArea.insertBefore(postCard, feedArea.firstChild);
+                }
+            }
+        })
+        .subscribe();
+}
+
+// 2. LOCALSTORAGE CACHE FOR INSTANT PAGE LOAD (Refresh karte hi purana data turant dikhega)
+const originalFetchFeed = window.fetchFeedPosts;
+if (originalFetchFeed) {
+    window.fetchFeedPosts = async function() {
+        const feedPostsArea = document.getElementById('feed-posts-area');
+        if (!feedPostsArea) return;
+
+        // Pehle local cache se turant data dikhao taaki loading ka wait na karna pade
+        const cachedPosts = localStorage.getItem('insta_cached_posts');
+        if (cachedPosts && feedPostsArea.children.length === 0) {
+            try {
+                const posts = JSON.parse(cachedPosts);
+                renderPostsToDOM(posts, feedPostsArea, false); // Instant render without waiting
+            } catch(e) {}
+        }
+
+        // Phir background mein fresh data fetch karke cache update karo
+        try {
+            const { data: posts, error } = await supabaseClient
+                .from('posts')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (!error && posts) {
+                localStorage.setItem('insta_cached_posts', JSON.stringify(posts));
+                renderPostsToDOM(posts, feedPostsArea, true);
+            }
+        } catch(err) {
+            console.error("Background sync error:", err);
+        }
+    };
+}
+
+// Helper function for rendering posts cleanly
+function renderPostsToDOM(posts, feedPostsArea, overwrite = true) {
+    if (!posts || posts.length === 0) return;
+    if (overwrite) feedPostsArea.innerHTML = '';
+    
+    // Agar pehle se posts rendered hain toh dubara duplicate mat karo agar same count hai
+    if (!overwrite && feedPostsArea.children.length > 0) return;
+
+    const myName = localStorage.getItem('currentUsername');
+
+    posts.forEach(post => {
+        // Check karein ki yeh post already DOM mein hai ya nahi
+        if (document.getElementById(`post-card-${post.id}`)) return;
+
+        const postCard = document.createElement('div');
+        postCard.id = `post-card-${post.id}`;
+        postCard.style.cssText = "background:#000; border-bottom:1px solid #262626; margin-bottom:12px;";
+        postCard.innerHTML = `
+            <div style="display:flex; align-items:center; justify-content:space-between; padding:10px 12px;">
+                <div style="display:flex; align-items:center; gap:10px; cursor:pointer;" class="post-user-header">
+                    <div style="width:32px; height:32px; background:#444; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:13px;">${post.username.charAt(0).toUpperCase()}</div>
+                    <b style="font-size:13px;">${post.username}</b>
+                </div>
+            </div>
+            <div style="width:100%; max-height:450px; background:#111; overflow:hidden; display:flex; justify-content:center; align-items:center;">
+                ${post.image_url ? `<img src="${post.image_url}" loading="lazy" style="width:100%; object-fit:cover;" onerror="this.style.display='none';">` : ''}
+            </div>
+            <div style="padding:10px 12px;">
+                <div style="display:flex; gap:15px; font-size:22px; margin-bottom:8px;">
+                    <i class="fa-regular fa-heart post-like-btn" style="cursor:pointer;"></i>
+                    <i class="fa-regular fa-comment" style="cursor:pointer;"></i>
+                </div>
+                <p style="font-size:13px; margin-bottom:5px;"><b class="likes-count">...</b> likes</p>
+                <p style="font-size:13px; margin-bottom:8px;"><b>${post.username}</b> ${post.caption || ''}</p>
+                <div class="comments-container" style="font-size:12px; color:#aaa; margin-bottom:6px;"></div>
+                <div style="display:flex; border-top:1px solid #262626; padding-top:8px; margin-top:5px;">
+                    <input type="text" class="comment-input" placeholder="Add a comment..." style="flex:1; background:transparent; border:none; color:#fff; font-size:12px; outline:none;">
+                    <button class="comment-submit" style="background:transparent; border:none; color:#0095f6; font-weight:bold; font-size:12px; cursor:pointer;">Post</button>
+                </div>
+            </div>
+        `;
+
+        // Background async counts loader
+        (async () => {
+            const { count: likesCount } = await supabaseClient.from('likes').select('*', { count: 'exact', head: true }).eq('post_id', post.id);
+            const { data: myLike } = await supabaseClient.from('likes').select('*').eq('post_id', post.id).eq('username', myName);
+            const { data: comments } = await supabaseClient.from('comments').select('*').eq('post_id', post.id).order('created_at', { ascending: true });
+
+            const likeBtn = postCard.querySelector('.post-like-btn');
+            const likesElem = postCard.querySelector('.likes-count');
+            const commentsDiv = postCard.querySelector('.comments-container');
+
+            if (likesElem) likesElem.textContent = likesCount || 0;
+            if (myLike && myLike.length > 0 && likeBtn) {
+                likeBtn.classList.remove('fa-regular');
+                likeBtn.classList.add('fa-solid');
+                likeBtn.style.color = '#ed4956';
+            }
+            if (comments && comments.length > 0 && commentsDiv) {
+                commentsDiv.innerHTML = comments.map(c => `<div><b>${c.username}</b>: ${c.comment}</div>`).join('');
+            }
+
+            if (likeBtn) {
+                likeBtn.onclick = async () => {
+                    let currentLikes = parseInt(likesElem.textContent) || 0;
+                    if (likeBtn.classList.contains('fa-solid')) {
+                        likeBtn.classList.remove('fa-solid');
+                        likeBtn.classList.add('fa-regular');
+                        likeBtn.style.color = '#fff';
+                        likesElem.textContent = Math.max(0, currentLikes - 1);
+                        await supabaseClient.from('likes').delete().eq('post_id', post.id).eq('username', myName);
+                    } else {
+                        likeBtn.classList.remove('fa-regular');
+                        likeBtn.classList.add('fa-solid');
+                        likeBtn.style.color = '#ed4956';
+                        likesElem.textContent = currentLikes + 1;
+                        await supabaseClient.from('likes').insert([{ post_id: post.id, username: myName }]);
+                    }
+                };
+            }
+
+            const commentInput = postCard.querySelector('.comment-input');
+            const commentBtn = postCard.querySelector('.comment-submit');
+            const postCommentAction = async () => {
+                const txt = commentInput.value.trim();
+                if (!txt) return;
+                commentInput.value = '';
+                commentsDiv.innerHTML += `<div><b>${myName}</b>: ${txt}</div>`;
+                await supabaseClient.from('comments').insert([{ post_id: post.id, username: myName, comment: txt }]);
+            };
+            if (commentBtn) commentBtn.onclick = postCommentAction;
+            if (commentInput) commentInput.onkeypress = (e) => { if (e.key === 'Enter') postCommentAction(); };
+        })();
+
+        feedPostsArea.appendChild(postCard);
+    });
+}
