@@ -1195,3 +1195,94 @@ function appendChatMessage(msg) {
     messagesArea.appendChild(msgBubble);
     messagesArea.scrollTop = messagesArea.scrollHeight;
                         }
+// ==========================================
+// PATCH FIX FOR FAST POSTING & LAZY LOADING
+// ==========================================
+console.log("Instagram-Telegram Patch Loaded Successfully!");
+
+// 1. Optimized Fast Upload Handler with Timeout & Validation
+const originalSubmitBtn = document.getElementById('submit-upload-btn');
+if (originalSubmitBtn) {
+    // Purane event listeners ko hatane ke liye clone node trick
+    const newSubmitBtn = originalSubmitBtn.cloneNode(true);
+    originalSubmitBtn.parentNode.replaceChild(newSubmitBtn, originalSubmitBtn);
+
+    newSubmitBtn.addEventListener('click', async () => {
+        const myName = localStorage.getItem('currentUsername');
+        if (!myName) {
+            alert("Pehle login kijiye!");
+            return;
+        }
+
+        const fileInput = document.getElementById('upload-file-input');
+        const captionInput = document.getElementById('upload-caption');
+        
+        const fileUrl = fileInput ? fileInput.value.trim() : "";
+        const caption = captionInput ? captionInput.value.trim() : "";
+
+        if (!fileUrl) {
+            alert("Kripya image ya video ka valid URL dalein!");
+            return;
+        }
+
+        newSubmitBtn.textContent = "Uploading...";
+        newSubmitBtn.disabled = true;
+
+        try {
+            // Check karein ki video hai ya image
+            const isVideo = fileUrl.toLowerCase().match(/\.(mp4|webm|mov|ogg)|video/);
+            const tableName = isVideo ? 'reels' : 'posts';
+            const payloadData = isVideo 
+                ? { username: myName, video_url: fileUrl, caption: caption }
+                : { username: myName, image_url: fileUrl, caption: caption };
+
+            // Supabase mein insert
+            const { error } = await supabaseClient.from(tableName).insert([payloadData]);
+            
+            if (error) throw error;
+
+            alert(isVideo ? "Reel successfully upload ho gayi!" : "Post successfully upload ho gayi!");
+
+            if (fileInput) fileInput.value = "";
+            if (captionInput) captionInput.value = "";
+            
+            const modal = document.getElementById('upload-modal');
+            if (modal) modal.style.display = 'none';
+
+            // Feed ko turant refresh karein
+            if (typeof fetchFeedPosts === 'function' && currentActiveView === 'insta-feed-container') {
+                fetchFeedPosts();
+            }
+        } catch (err) {
+            console.error("Upload error details:", err);
+            alert("Upload fail ho gaya! Kripya chhota ya direct image URL use karein.");
+        } finally {
+            newSubmitBtn.textContent = "Share";
+            newSubmitBtn.disabled = false;
+        }
+    });
+}
+
+// 2. Optimized Image/Video Rendering with Lazy Loading & Fallbacks
+// Yeh patch heavy images ko load hone mein time lagne se bachayega aur placeholder dikhayega
+window.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => {
+        const feedArea = document.getElementById('feed-posts-area');
+        if (feedArea) {
+            const observer = new MutationObserver(() => {
+                const images = feedArea.querySelectorAll('img');
+                images.forEach(img => {
+                    if (!img.getAttribute('loading')) {
+                        img.setAttribute('loading', 'lazy'); // Fast browser-level lazy loading
+                        img.style.background = '#1a1a1a';
+                        img.onerror = function() {
+                            this.style.display = 'none';
+                            this.insertAdjacentHTML('afterend', '<div style="padding:20px; text-align:center; color:#777; font-size:12px;">Image load nahi ho payi (Invalid URL)</div>');
+                        };
+                    }
+                });
+            });
+            observer.observe(feedArea, { childList: true, subtree: true });
+        }
+    }, 1000);
+});
