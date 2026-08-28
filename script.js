@@ -667,3 +667,61 @@ function shareProfileLink() {
     navigator.clipboard?.writeText(window.location.href);
     alert("Profile link copied to clipboard!");
 }
+// --- GLOBAL PROFILE PICTURE SYNC ---
+
+// 1. Avatar apply karne ka universal function
+window.updateGlobalAvatar = function(username, imageUrl) {
+    if (!imageUrl) return;
+    
+    // Sabhi jagah jahan ye user ki id/avatar show ho raha hai
+    document.querySelectorAll(`.avatar-container-${username}, [data-username="${username}"]`).forEach(el => {
+        const avatarDiv = el.querySelector('.avatar');
+        if (avatarDiv) {
+            avatarDiv.style.backgroundImage = `url('${imageUrl}')`;
+            avatarDiv.style.backgroundSize = 'cover';
+            avatarDiv.style.backgroundPosition = 'center';
+            avatarDiv.textContent = '';
+        }
+    });
+};
+
+// 2. Profile picture set ya change karne ka advanced option (Edit Profile ya Avatar click par)
+window.changeProfilePicture = function() {
+    const imgUrl = prompt("Enter Image URL for your Profile Picture:");
+    if (imgUrl) {
+        const username = localStorage.getItem('currentUsername');
+        localStorage.setItem(`userAvatar_${username}`, imgUrl);
+        
+        // Khud ki profile par apply karein
+        const myAvatar = document.getElementById('my-profile-avatar');
+        if (myAvatar) {
+            myAvatar.style.backgroundImage = `url('${imgUrl}')`;
+            myAvatar.style.backgroundSize = 'cover';
+            myAvatar.style.backgroundPosition = 'center';
+            myAvatar.textContent = '';
+        }
+        
+        // Global sync call
+        updateGlobalAvatar(username, imgUrl);
+    }
+};
+
+// 3. App load hone par saved avatar restore karna
+window.addEventListener('DOMContentLoaded', () => {
+    const username = localStorage.getItem('currentUsername');
+    if (username) {
+        const savedUrl = localStorage.getItem(`userAvatar_${username}`);
+        if (savedUrl) {
+            setTimeout(() => {
+                const myAvatar = document.getElementById('my-profile-avatar');
+                if (myAvatar) {
+                    myAvatar.style.backgroundImage = `url('${savedUrl}')`;
+                    myAvatar.style.backgroundSize = 'cover';
+                    myAvatar.style.backgroundPosition = 'center';
+                    myAvatar.textContent = '';
+                }
+                updateGlobalAvatar(username, savedUrl);
+            }, 500);
+        }
+    }
+});
