@@ -1,5 +1,5 @@
 // ==========================================
-// INSTA-TELE APP SCRIPT.JS (COMPLETE & UPDATED)
+// INSTA-TELE APP SCRIPT.JS (FINAL & FULLY FIXED)
 // ==========================================
 
 const SUPABASE_URL = 'https://ydjbojsqeujahgqinfmk.supabase.co';
@@ -14,7 +14,6 @@ try {
 
 // DOM Elements
 const usernameInput = document.getElementById('username-input');
-// Agar aapke HTML me password input bhi hai toh use select karein (Optional check agar HTML me field ho)
 const passwordInput = document.getElementById('password-input'); 
 const loginBtn = document.getElementById('login-btn');
 const loginError = document.getElementById('login-error');
@@ -48,14 +47,13 @@ function switchView(viewId) {
 if (loginBtn) {
     loginBtn.addEventListener('click', async () => {
         const username = usernameInput ? usernameInput.value.trim().toLowerCase() : "";
-        const password = passwordInput ? passwordInput.value.trim() : "272009"; // Fallback agar password field na ho
+        const password = passwordInput ? passwordInput.value.trim() : "272009";
 
         if (!username) {
             if (loginError) loginError.textContent = "Please enter a username";
             return;
         }
 
-        // FIXED PASSWORD CHECK (Strictly '272009' bina kisi hint ke)
         if (passwordInput && password !== "272009") {
             if (loginError) loginError.textContent = "Incorrect Password! Access Denied.";
             return;
@@ -105,7 +103,6 @@ document.querySelectorAll('.insta-nav i').forEach(icon => {
         document.querySelectorAll('.insta-nav i').forEach(i => i.classList.remove('active'));
         e.target.classList.add('active');
 
-        // Close chat window if open when switching main tabs
         if (chatWindowScreen) chatWindowScreen.classList.remove('active');
         if (activeChatSubscription) {
             supabaseClient.removeChannel(activeChatSubscription);
@@ -428,7 +425,7 @@ async function fetchReelsFromDatabase() {
 }
 
 // ==========================================
-// PROFILE & EDIT PROFILE LOGIC (Username & Avatar Update)
+// PROFILE, EDIT PROFILE & FOLLOWERS LIST SYSTEM
 // ==========================================
 async function openProfilePage(username, isOwnProfile) {
     const profileUsernameTitle = document.getElementById('profile-username-title');
@@ -441,6 +438,17 @@ async function openProfilePage(username, isOwnProfile) {
     if (profileUsernameTitle) profileUsernameTitle.textContent = username;
     if (profileAvatar) profileAvatar.textContent = username.charAt(0).toUpperCase();
 
+    // Check if user has a custom avatar image saved in db
+    const { data: userData } = await supabaseClient.from('users').select('avatar_url').eq('username', username).single();
+    if (userData && userData.avatar_url && profileAvatar) {
+        profileAvatar.style.backgroundImage = `url(${userData.avatar_url})`;
+        profileAvatar.style.backgroundSize = 'cover';
+        profileAvatar.textContent = '';
+    } else if (profileAvatar) {
+        profileAvatar.style.backgroundImage = 'none';
+        profileAvatar.textContent = username.charAt(0).toUpperCase();
+    }
+
     const { count: pCount } = await supabaseClient.from('posts').select('*', { count: 'exact', head: true }).eq('username', username);
     const { count: rCount } = await supabaseClient.from('reels').select('*', { count: 'exact', head: true }).eq('username', username);
     if (postsCountElem) postsCountElem.textContent = (pCount || 0) + (rCount || 0);
@@ -450,11 +458,23 @@ async function openProfilePage(username, isOwnProfile) {
     if (followersCountElem) followersCountElem.textContent = followersCount || 0;
     if (followingCountElem) followingCountElem.textContent = followingCount || 0;
 
+    // TAP ON FOLLOWERS/FOLLOWING TO VIEW CLEAR LIST
+    const followersBoxElement = followersCountElem ? followersCountElem.parentElement : null;
+    const followingBoxElement = followingCountElem ? followingCountElem.parentElement : null;
+
+    if (followersBoxElement) {
+        followersBoxElement.style.cursor = 'pointer';
+        followersBoxElement.onclick = () => openFollowListModal(username, 'followers');
+    }
+    if (followingBoxElement) {
+        followingBoxElement.style.cursor = 'pointer';
+        followingBoxElement.onclick = () => openFollowListModal(username, 'following');
+    }
+
     const myName = localStorage.getItem('currentUsername');
     if (profileActionButton) {
         if (isOwnProfile || username === myName) {
             profileActionButton.textContent = "Edit Profile";
-            // EDIT PROFILE FUNCTIONALITY: Jab user 'Edit Profile' click kare
             profileActionButton.onclick = () => {
                 openEditProfileModal(username);
             };
@@ -466,9 +486,11 @@ async function openProfilePage(username, isOwnProfile) {
                 if (isFollowing) {
                     await supabaseClient.from('follows').delete().eq('follower', myName).eq('following', username);
                     profileActionButton.textContent = "Follow";
+                    openProfilePage(username, false); // Refresh counts
                 } else {
                     await supabaseClient.from('follows').insert([{ follower: myName, following: username }]);
                     profileActionButton.textContent = "Unfollow";
+                    openProfilePage(username, false); // Refresh counts
                 }
             };
         }
@@ -498,7 +520,73 @@ async function openProfilePage(username, isOwnProfile) {
     }
 }
 
-// Edit Profile Modal / Form Handler (Purani id aur posts/reels ko safe rakhte hue update karega)
+// Follower / Following List Popup Modal
+async function openFollowListModal(username, type) {
+    let listModal = document.getElementById('follow-list-modal-dynamic');
+    if (!listModal) {
+        listModal = document.createElement('div');
+        listModal.id = 'follow-list-modal-dynamic';
+        listModal.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100vh; background:rgba(0,0,0,0.85); z-index:999999; display:flex; justify-content:center; align-items:center;";
+        document.body.appendChild(listModal);
+    }
+
+    listModal.style.display = 'flex';
+    listModal.innerHTML = `
+        <div style="background:#121212; border-radius:12px; width:90%; max-width:380px; height:60vh; border:1px solid #262626; color:#fff; display:flex; flex-direction:column; overflow:hidden;">
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:14px 16px; border-bottom:1px solid #262626;">
+                <h3 style="margin:0; font-size:15px; text-transform:capitalize;">${type}</h3>
+                <button id="close-follow-modal" style="background:transparent; border:none; color:#fff; font-size:18px; cursor:pointer;"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div id="follow-users-list-area" style="flex:1; overflow-y:auto; padding:10px 16px; display:flex; flex-direction:column; gap:12px;">
+                <p style="text-align:center; color:#777; margin-top:30px;">Loading...</p>
+            </div>
+        </div>
+    `;
+
+    document.getElementById('close-follow-modal').onclick = () => {
+        listModal.style.display = 'none';
+    };
+
+    const listArea = document.getElementById('follow-users-list-area');
+    let queryResult;
+
+    if (type === 'followers') {
+        queryResult = await supabaseClient.from('follows').select('follower').eq('following', username);
+    } else {
+        queryResult = await supabaseClient.from('follows').select('following').eq('follower', username);
+    }
+
+    const data = queryResult.data;
+    listArea.innerHTML = '';
+
+    if (!data || data.length === 0) {
+        listArea.innerHTML = `<p style="text-align:center; color:#777; margin-top:30px;">No ${type} yet.</p>`;
+        return;
+    }
+
+    data.forEach(item => {
+        const targetUser = type === 'followers' ? item.follower : item.following;
+        
+        const userRow = document.createElement('div');
+        userRow.style.cssText = "display:flex; align-items:center; gap:12px; cursor:pointer; padding:6px 0;";
+        userRow.innerHTML = `
+            <div style="width:38px; height:38px; background:#333; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:15px;">${targetUser.charAt(0).toUpperCase()}</div>
+            <div style="flex:1;">
+                <b style="font-size:14px; color:#fff;">${targetUser}</b>
+            </div>
+        `;
+
+        userRow.addEventListener('click', () => {
+            listModal.style.display = 'none';
+            switchView('user-profile-container');
+            openProfilePage(targetUser, false);
+        });
+
+        listArea.appendChild(userRow);
+    });
+}
+
+// Edit Profile Modal with Gallery Upload Button
 function openEditProfileModal(currentUsername) {
     let editModal = document.getElementById('edit-profile-modal-dynamic');
     if (!editModal) {
@@ -512,12 +600,16 @@ function openEditProfileModal(currentUsername) {
     editModal.innerHTML = `
         <div style="background:#121212; padding:20px; border-radius:12px; width:90%; max-width:350px; border:1px solid #262626; color:#fff;">
             <h3 style="margin-top:0; font-size:16px;">Edit Profile</h3>
+            
             <label style="font-size:12px; color:#aaa;">Change Username:</label>
             <input type="text" id="edit-username-input" value="${currentUsername}" style="width:100%; padding:10px; margin:8px 0 15px 0; background:#1a1a1a; border:1px solid #333; color:#fff; border-radius:6px; box-sizing:border-box;">
             
-            <label style="font-size:12px; color:#aaa;">Profile Picture URL:</label>
-            <input type="text" id="edit-avatar-input" placeholder="Image URL (optional)" style="width:100%; padding:10px; margin:8px 0 20px 0; background:#1a1a1a; border:1px solid #333; color:#fff; border-radius:6px; box-sizing:border-box;">
+            <label style="font-size:12px; color:#aaa;">Profile Picture (Choose from Gallery):</label>
+            <input type="file" id="edit-gallery-file" accept="image/*" style="width:100%; padding:8px; margin:8px 0 5px 0; background:#1a1a1a; border:1px solid #333; color:#fff; border-radius:6px; box-sizing:border-box; font-size:12px;">
+            <p id="uploading-status" style="font-size:11px; color:#0095f6; margin:0 0 15px 0; display:none;">Processing image...</p>
             
+            <input type="hidden" id="edit-avatar-url-hidden" value="">
+
             <div style="display:flex; gap:10px;">
                 <button id="save-profile-btn" style="flex:1; background:#0095f6; color:#fff; border:none; padding:10px; border-radius:6px; font-weight:bold; cursor:pointer;">Save</button>
                 <button id="cancel-profile-btn" style="flex:1; background:#333; color:#fff; border:none; padding:10px; border-radius:6px; font-weight:bold; cursor:pointer;">Cancel</button>
@@ -525,29 +617,48 @@ function openEditProfileModal(currentUsername) {
         </div>
     `;
 
+    const fileInput = document.getElementById('edit-gallery-file');
+    const statusText = document.getElementById('uploading-status');
+    const hiddenUrlInput = document.getElementById('edit-avatar-url-hidden');
+
+    fileInput.onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        statusText.style.display = 'block';
+        statusText.textContent = "Converting image...";
+
+        const reader = new FileReader();
+        reader.onload = (uploadEvent) => {
+            hiddenUrlInput.value = uploadEvent.target.result; // Base64 Data URL for instant gallery preview/storage
+            statusText.textContent = "Image ready to save!";
+            statusText.style.color = '#2ecc71';
+        };
+        reader.readAsDataURL(file);
+    };
+
     document.getElementById('cancel-profile-btn').onclick = () => {
         editModal.style.display = 'none';
     };
 
     document.getElementById('save-profile-btn').onclick = async () => {
         const newUsernameInput = document.getElementById('edit-username-input').value.trim().toLowerCase();
-        const newAvatarInput = document.getElementById('edit-avatar-input').value.trim();
+        let newAvatarUrl = hiddenUrlInput.value;
 
         if (!newUsernameInput) {
             alert("Username cannot be empty!");
             return;
         }
 
-        if (newUsernameInput === currentUsername) {
-            editModal.style.display = 'none';
-            return;
+        // If no new gallery image selected, check if old one can be retained
+        if (!newAvatarUrl) {
+            const { data: existingUser } = await supabaseClient.from('users').select('avatar_url').eq('username', currentUsername).single();
+            if (existingUser) newAvatarUrl = existingUser.avatar_url || '';
         }
 
-        // IMPORTANT: Naya account banane ke bajaye existing user row ko update karenge 
-        // taaki posts aur reels ka reference wahi purani id/username par jude rahe.
         const { error } = await supabaseClient
             .from('users')
-            .update({ username: newUsernameInput, avatar_url: newAvatarInput })
+            .update({ username: newUsernameInput, avatar_url: newAvatarUrl })
             .eq('username', currentUsername);
 
         if (error) {
@@ -555,7 +666,7 @@ function openEditProfileModal(currentUsername) {
             return;
         }
 
-        // Posts, Reels aur Likes tables me bhi username update kar dein taaki data mismatch na ho
+        // Update username references across other tables
         await supabaseClient.from('posts').update({ username: newUsernameInput }).eq('username', currentUsername);
         await supabaseClient.from('reels').update({ username: newUsernameInput }).eq('username', currentUsername);
         await supabaseClient.from('likes').update({ username: newUsernameInput }).eq('username', currentUsername);
@@ -563,7 +674,7 @@ function openEditProfileModal(currentUsername) {
 
         localStorage.setItem('currentUsername', newUsernameInput);
         editModal.style.display = 'none';
-        alert("Profile updated successfully! All your posts and reels remain securely linked.");
+        alert("Profile updated successfully!");
         
         openProfilePage(newUsernameInput, true);
     };
@@ -763,13 +874,13 @@ async function openChatWindow(receiverName) {
 
     const myName = localStorage.getItem('currentUsername');
 
-    // Close previous subscription if exists
+    // Close previous active subscription securely
     if (activeChatSubscription) {
         supabaseClient.removeChannel(activeChatSubscription);
         activeChatSubscription = null;
     }
 
-    // Fetch existing messages between myName and receiverName
+    // Fetch existing messages between current user and receiver
     const { data: messages, error } = await supabaseClient
         .from('messages')
         .select('*')
@@ -785,20 +896,18 @@ async function openChatWindow(receiverName) {
         }
     }
 
-    // Setup Realtime Subscription for Live Chat Updates (Bina back kiye live dikhega)
+    // FIXED LIVE REALTIME CHAT SUBSCRIPTION (Bina refresh kiye messages aayenge)
     activeChatSubscription = supabaseClient
-        .channel(`public:messages:${myName}_${receiverName}`)
+        .channel('room_messages_live')
         .on('postgres_changes', { 
             event: 'INSERT', 
             schema: 'public', 
             table: 'messages' 
         }, payload => {
             const newMsg = payload.new;
-            // Check if message belongs to current active conversation
             if ((newMsg.sender === myName && newMsg.receiver === receiverName) || 
                 (newMsg.sender === receiverName && newMsg.receiver === myName)) {
                 
-                // Remove placeholder text if present
                 if (messagesArea.innerHTML.includes('No messages yet')) {
                     messagesArea.innerHTML = '';
                 }
@@ -863,4 +972,4 @@ function appendChatMessage(msg) {
 
     messagesArea.appendChild(msgBubble);
     messagesArea.scrollTop = messagesArea.scrollHeight;
-                                                                              }
+                                                                      }
