@@ -725,16 +725,16 @@ function toggleCamera(btn) {
 
 function openChatWithUser() {
     openChatWith(viewingTargetUser);
-                }
+           }
 // ==========================================
-// INSTAGRAM-STYLE CLEAN WEBRTC CALLING SYSTEM
+// INSTAGRAM-STYLE FULL FEATURED WEBRTC CALLING
 // ==========================================
 
 let localStream = null;
 let remoteStream = null;
 let peerConnection = null;
 let signalingChannel = null;
-let isCaller = false;
+let isFrontCamera = true;
 
 const rtcConfig = {
     iceServers: [
@@ -743,7 +743,6 @@ const rtcConfig = {
     ]
 };
 
-// Initialize Signaling Channel (Using Supabase Broadcast so text table is clean)
 function initSignalingChannel(roomUser) {
     if (!supabaseClient) return;
     if (signalingChannel) supabaseClient.removeChannel(signalingChannel);
@@ -758,10 +757,10 @@ function initSignalingChannel(roomUser) {
     signalingChannel
         .on('broadcast', { event: 'call-offer' }, async ({ payload }) => {
             if (payload.receiver === currentUser) {
-                // Show Instagram-style Incoming Call Screen
                 showIncomingCallUI(payload.caller, payload.callType);
                 window.pendingOffer = payload.offer;
-                window.pendingCaller = payload.caller;
+                window.callerName = payload.caller;
+                window.incomingCallType = payload.callType;
             }
         })
         .on('broadcast', { event: 'call-answer' }, async ({ payload }) => {
@@ -783,11 +782,14 @@ function initSignalingChannel(roomUser) {
         .subscribe();
 }
 
-async function setupMedia(isVideo) {
+async function setupMedia(isVideo, useFront = true) {
     try {
+        if (localStream) {
+            localStream.getTracks().forEach(t => t.stop());
+        }
         localStream = await navigator.mediaDevices.getUserMedia({
             audio: true,
-            video: isVideo ? { width: 1280, height: 720 } : false
+            video: isVideo ? { facingMode: useFront ? 'user' : 'environment', width: 1280, height: 720 } : false
         });
         const localVid = document.getElementById('local-video-preview');
         if (localVid) localVid.srcObject = localStream;
@@ -796,7 +798,7 @@ async function setupMedia(isVideo) {
     }
 }
 
-function createPeerConnection(targetUser, isVideo) {
+function createPeerConnection(targetUser) {
     peerConnection = new RTCPeerConnection(rtcConfig);
 
     if (localStream) {
@@ -823,14 +825,12 @@ function createPeerConnection(targetUser, isVideo) {
     };
 }
 
-// Start Audio Call
 window.startAudioCall = async function() {
     if (!activeChatUser) return alert("Open chat first!");
-    isCaller = true;
     initSignalingChannel(activeChatUser);
     showActiveCallUI('audio', activeChatUser, false);
     await setupMedia(false);
-    createPeerConnection(activeChatUser, false);
+    createPeerConnection(activeChatUser);
 
     const offer = await peerConnection.createOffer();
     await peerConnection.setLocalDescription(offer);
@@ -844,14 +844,12 @@ window.startAudioCall = async function() {
     }, 1000);
 };
 
-// Start Video Call
 window.startVideoCall = async function() {
     if (!activeChatUser) return alert("Open chat first!");
-    isCaller = true;
     initSignalingChannel(activeChatUser);
     showActiveCallUI('video', activeChatUser, true);
-    await setupMedia(true);
-    createPeerConnection(activeChatUser, true);
+    await setupMedia(true, isFrontCamera);
+    createPeerConnection(activeChatUser);
 
     const offer = await peerConnection.createOffer();
     await peerConnection.setLocalDescription(offer);
@@ -865,15 +863,14 @@ window.startVideoCall = async function() {
     }, 1000);
 };
 
-// Accept Incoming Call
 window.acceptIncomingCall = async function() {
     const caller = window.callerName;
     const isVideo = window.incomingCallType === 'video';
     
     initSignalingChannel(caller);
     showActiveCallUI(window.incomingCallType, caller, isVideo);
-    await setupMedia(isVideo);
-    createPeerConnection(caller, isVideo);
+    await setupMedia(isVideo, isFrontCamera);
+    createPeerConnection(caller);
 
     await peerConnection.setRemoteDescription(new RTCSessionDescription(window.pendingOffer));
     const answer = await peerConnection.createAnswer();
@@ -886,12 +883,11 @@ window.acceptIncomingCall = async function() {
     });
 };
 
-// Reject / End Call
 window.rejectIncomingCall = function() {
     if (signalingChannel) {
         signalingChannel.send({ type: 'broadcast', event: 'call-ended', payload: {} });
     }
-    endCallScreen(true);
+    endCallScreen(false);
 };
 
 window.endCallScreen = function(notifyOther = true) {
@@ -915,11 +911,44 @@ function updateCallStatus(text) {
     if (statusEl) statusEl.textContent = text;
 }
 
-// Instagram Style Incoming Call Screen (Ringing UI)
+// Extra Features Controls
+window.toggleMute = function(btn) {
+    if (localStream) {
+        const audioTrack = localStream.getAudioTracks()[0];
+        if (audioTrack) {
+            audioTrack.enabled = !audioTrack.enabled;
+            btn.style.background = audioTrack.enabled ? 'rgba(255,255,255,0.2)' : '#fff';
+            btn.style.color = audioTrack.enabled ? '#fff' : '#000';
+            btn.innerHTML = audioTrack.enabled ? '<i class="fa-solid fa-microphone"></i>' : '<i class="fa-solid fa-microphone-slash"></i>';
+        }
+    }
+};
+
+window.toggleVideoCam = function(btn) {
+    if (localStream) {
+        const videoTrack = localStream.getVideoTracks()[0];
+        if (videoTrack) {
+            videoTrack.enabled = !videoTrack.enabled;
+            btn.style.background = videoTrack.enabled ? 'rgba(255,255,255,0.2)' : '#fff';
+            btn.style.color = videoTrack.enabled ? '#fff' : '#000';
+            btn.innerHTML = videoTrack.enabled ? '<i class="fa-solid fa-video"></i>' : '<i class="fa-solid fa-video-slash"></i>';
+        }
+    }
+};
+
+window.switchCamera = async function() {
+    isFrontCamera = !isFrontCamera;
+    const isVideo = window.incomingCallType === 'video' || document.getElementById('local-video-preview') !== null;
+    await setupMedia(isVideo, isFrontCamera);
+    if (peerConnection) {
+        const videoSender = peerConnection.getSenders().find(s => s.track && s.track.kind === 'video');
+        if (videoSender && localStream) {
+            videoSender.replaceTrack(localStream.getVideoTracks()[0]);
+        }
+    }
+};
+
 function showIncomingCallUI(caller, type) {
-    window.callerName = caller;
-    window.incomingCallType = type;
-    
     let overlay = document.getElementById('instagram-call-overlay');
     if (!overlay) {
         overlay = document.createElement('div');
@@ -937,19 +966,19 @@ function showIncomingCallUI(caller, type) {
         </div>
         <div style="display:flex; gap:60px; margin-bottom:60px; align-items:center;">
             <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
-                <button onclick="rejectIncomingCall()" style="width:70px; height:70px; border-radius:50%; background:#ed4956; border:none; color:#fff; font-size:26px; cursor:pointer; box-shadow:0 4px 15px rgba(237,73,86,0.4);"><i class="fa-solid fa-phone-slash"></i></button>
+                <button onclick="rejectIncomingCall()" style="width:70px; height:70px; border-radius:50%; background:#ed4956; border:none; color:#fff; font-size:26px; cursor:pointer;"><i class="fa-solid fa-phone-slash"></i></button>
                 <span style="font-size:12px; color:#aaa;">Decline</span>
             </div>
             <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
-                <button onclick="acceptIncomingCall()" style="width:70px; height:70px; border-radius:50%; background:#46c93a; border:none; color:#fff; font-size:26px; cursor:pointer; box-shadow:0 4px 15px rgba(70,201,58,0.4);"><i class="fa-solid fa-phone"></i></button>
+                <button onclick="acceptIncomingCall()" style="width:70px; height:70px; border-radius:50%; background:#46c93a; border:none; color:#fff; font-size:26px; cursor:pointer;"><i class="fa-solid fa-phone"></i></button>
                 <span style="font-size:12px; color:#aaa;">Accept</span>
             </div>
         </div>
     `;
 }
 
-// Active Call UI (Jab call connect ho jaye ya caller call lagaye)
 function showActiveCallUI(type, targetUser, isVideo) {
+    window.incomingCallType = type;
     let overlay = document.getElementById('instagram-call-overlay');
     if (!overlay) {
         overlay = document.createElement('div');
@@ -957,21 +986,29 @@ function showActiveCallUI(type, targetUser, isVideo) {
         document.body.appendChild(overlay);
     }
 
-    overlay.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:#000; z-index:99999; display:flex; flex-direction:column; justify-content:space-between; align-items:center; padding:40px 20px; color:#fff;";
+    overlay.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:#000; z-index:99999; display:flex; flex-direction:column; justify-content:space-between; align-items:center; padding:30px 20px; color:#fff;";
 
     overlay.innerHTML = `
         <div style="position:relative; width:100%; height:100%; display:flex; flex-direction:column; justify-content:space-between; align-items:center;">
             <video id="remote-video-display" autoplay playsinline style="position:absolute; top:0; left:0; width:100%; height:100%; object-fit:cover; z-index:1; background:#111;"></video>
             
-            <div style="z-index:2; display:flex; flex-direction:column; align-items:center; gap:8px; margin-top:30px; background:rgba(0,0,0,0.6); padding:12px 25px; border-radius:20px; backdrop-filter:blur(5px);">
-                <h3 style="font-size:18px; font-weight:500; margin:0;">${targetUser}</h3>
-                <p style="font-size:12px; color:#00ff9d; margin:0;" id="call-status-text">Ringing...</p>
+            <div style="z-index:2; display:flex; flex-direction:column; align-items:center; gap:4px; margin-top:20px; background:rgba(0,0,0,0.5); padding:10px 20px; border-radius:15px; backdrop-filter:blur(5px);">
+                <h3 style="font-size:16px; font-weight:500; margin:0;">${targetUser}</h3>
+                <p style="font-size:11px; color:#00ff9d; margin:0;" id="call-status-text">Ringing...</p>
             </div>
 
-            ${isVideo ? `<video id="local-video-preview" autoplay playsinline muted style="position:absolute; top:20px; right:20px; width:110px; height:160px; object-fit:cover; border-radius:12px; z-index:3; border:2px solid rgba(255,255,255,0.8);"></video>` : ''}
+            ${isVideo ? `<video id="local-video-preview" autoplay playsinline muted style="position:absolute; top:20px; right:20px; width:100px; height:150px; object-fit:cover; border-radius:12px; z-index:3; border:2px solid rgba(255,255,255,0.8);"></video>` : ''}
 
-            <div style="z-index:2; display:flex; gap:30px; margin-bottom:40px; align-items:center;">
-                <button onclick="endCallScreen(true)" style="width:65px; height:65px; border-radius:50%; background:#ed4956; border:none; color:#fff; font-size:24px; cursor:pointer; box-shadow:0 4px 15px rgba(237,73,86,0.4);"><i class="fa-solid fa-phone-slash"></i></button>
+            <!-- Instagram Style Bottom Controls Bar -->
+            <div style="z-index:2; display:flex; gap:20px; margin-bottom:30px; align-items:center; background:rgba(0,0,0,0.6); padding:12px 25px; border-radius:40px; backdrop-filter:blur(10px);">
+                <button onclick="toggleMute(this)" style="width:45px; height:45px; border-radius:50%; background:rgba(255,255,255,0.2); border:none; color:#fff; font-size:16px; cursor:pointer;"><i class="fa-solid fa-microphone"></i></button>
+                
+                ${isVideo ? `
+                <button onclick="toggleVideoCam(this)" style="width:45px; height:45px; border-radius:50%; background:rgba(255,255,255,0.2); border:none; color:#fff; font-size:16px; cursor:pointer;"><i class="fa-solid fa-video"></i></button>
+                <button onclick="switchCamera()" style="width:45px; height:45px; border-radius:50%; background:rgba(255,255,255,0.2); border:none; color:#fff; font-size:16px; cursor:pointer;"><i class="fa-solid fa-camera-rotate"></i></button>
+                ` : ''}
+
+                <button onclick="endCallScreen(true)" style="width:55px; height:55px; border-radius:50%; background:#ed4956; border:none; color:#fff; font-size:20px; cursor:pointer;"><i class="fa-solid fa-phone-slash"></i></button>
             </div>
         </div>
     `;
