@@ -500,22 +500,24 @@ function setupRealtimeChat() {
         supabaseClient.removeChannel(activeChatSubscription);
     }
 
-    const currentUser = localStorage.getItem('currentUsername');
-    const channelName = `chat_${[currentUser, activeChatUser].sort().join('_')}`;
-
     activeChatSubscription = supabaseClient
-        .channel(channelName)
+        .channel('custom-all-messages')
         .on(
             'postgres_changes',
             {
                 event: 'INSERT',
                 schema: 'public',
-                table: 'messages',
-                filter: `receiver=eq.${currentUser}`
+                table: 'messages'
             },
             payload => {
                 const newMsg = payload.new;
-                if (newMsg.sender === activeChatUser) {
+                const currentUser = localStorage.getItem('currentUsername');
+                
+                // Check if the incoming message belongs to the currently open chat room
+                if (
+                    (newMsg.sender === currentUser && newMsg.receiver === activeChatUser) ||
+                    (newMsg.sender === activeChatUser && newMsg.receiver === currentUser)
+                ) {
                     appendMessageToDOM(newMsg);
                 }
             }
@@ -527,6 +529,7 @@ function appendMessageToDOM(msg) {
     const msgContainer = document.getElementById('chatroom-messages');
     const currentUser = localStorage.getItem('currentUsername');
     
+    // Remove "No messages yet" placeholder if present
     const placeholder = msgContainer.querySelector('div[style*="text-align:center"]');
     if (placeholder) placeholder.remove();
 
@@ -557,4 +560,4 @@ async function sendChatMessage() {
 
 function openChatWithUser() {
     openChatWith(viewingTargetUser);
-}
+                                                                            }
