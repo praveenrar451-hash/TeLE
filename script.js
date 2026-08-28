@@ -1196,75 +1196,10 @@ function appendChatMessage(msg) {
     messagesArea.scrollTop = messagesArea.scrollHeight;
                         }
 // ==========================================
-// PATCH FIX FOR FAST POSTING & LAZY LOADING
+// SMART IMAGE FIX & FALLBACK PATCH
 // ==========================================
-console.log("Instagram-Telegram Patch Loaded Successfully!");
+console.log("Smart Image Fallback Patch Loaded!");
 
-// 1. Optimized Fast Upload Handler with Timeout & Validation
-const originalSubmitBtn = document.getElementById('submit-upload-btn');
-if (originalSubmitBtn) {
-    // Purane event listeners ko hatane ke liye clone node trick
-    const newSubmitBtn = originalSubmitBtn.cloneNode(true);
-    originalSubmitBtn.parentNode.replaceChild(newSubmitBtn, originalSubmitBtn);
-
-    newSubmitBtn.addEventListener('click', async () => {
-        const myName = localStorage.getItem('currentUsername');
-        if (!myName) {
-            alert("Pehle login kijiye!");
-            return;
-        }
-
-        const fileInput = document.getElementById('upload-file-input');
-        const captionInput = document.getElementById('upload-caption');
-        
-        const fileUrl = fileInput ? fileInput.value.trim() : "";
-        const caption = captionInput ? captionInput.value.trim() : "";
-
-        if (!fileUrl) {
-            alert("Kripya image ya video ka valid URL dalein!");
-            return;
-        }
-
-        newSubmitBtn.textContent = "Uploading...";
-        newSubmitBtn.disabled = true;
-
-        try {
-            // Check karein ki video hai ya image
-            const isVideo = fileUrl.toLowerCase().match(/\.(mp4|webm|mov|ogg)|video/);
-            const tableName = isVideo ? 'reels' : 'posts';
-            const payloadData = isVideo 
-                ? { username: myName, video_url: fileUrl, caption: caption }
-                : { username: myName, image_url: fileUrl, caption: caption };
-
-            // Supabase mein insert
-            const { error } = await supabaseClient.from(tableName).insert([payloadData]);
-            
-            if (error) throw error;
-
-            alert(isVideo ? "Reel successfully upload ho gayi!" : "Post successfully upload ho gayi!");
-
-            if (fileInput) fileInput.value = "";
-            if (captionInput) captionInput.value = "";
-            
-            const modal = document.getElementById('upload-modal');
-            if (modal) modal.style.display = 'none';
-
-            // Feed ko turant refresh karein
-            if (typeof fetchFeedPosts === 'function' && currentActiveView === 'insta-feed-container') {
-                fetchFeedPosts();
-            }
-        } catch (err) {
-            console.error("Upload error details:", err);
-            alert("Upload fail ho gaya! Kripya chhota ya direct image URL use karein.");
-        } finally {
-            newSubmitBtn.textContent = "Share";
-            newSubmitBtn.disabled = false;
-        }
-    });
-}
-
-// 2. Optimized Image/Video Rendering with Lazy Loading & Fallbacks
-// Yeh patch heavy images ko load hone mein time lagne se bachayega aur placeholder dikhayega
 window.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
         const feedArea = document.getElementById('feed-posts-area');
@@ -1272,12 +1207,27 @@ window.addEventListener('DOMContentLoaded', () => {
             const observer = new MutationObserver(() => {
                 const images = feedArea.querySelectorAll('img');
                 images.forEach(img => {
-                    if (!img.getAttribute('loading')) {
-                        img.setAttribute('loading', 'lazy'); // Fast browser-level lazy loading
-                        img.style.background = '#1a1a1a';
+                    // Check if already processed
+                    if (!img.dataset.fixed) {
+                        img.dataset.fixed = "true";
+                        img.setAttribute('loading', 'lazy');
+                        
+                        // Agar image load hone mein fail ho ya error de
                         img.onerror = function() {
-                            this.style.display = 'none';
-                            this.insertAdjacentHTML('afterend', '<div style="padding:20px; text-align:center; color:#777; font-size:12px;">Image load nahi ho payi (Invalid URL)</div>');
+                            this.style.display = 'none'; // Broken image tag ko chhupa do
+                            
+                            // Check karein ki pehle se error box toh nahi laga hua
+                            if (!this.parentNode.querySelector('.image-error-box')) {
+                                const errorBox = document.createElement('div');
+                                errorBox.className = 'image-error-box';
+                                errorBox.style.cssText = "width:100%; height:250px; background:#161616; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#888; text-align:center; padding:20px; font-size:13px; gap:8px; border-bottom:1px solid #262626;";
+                                errorBox.innerHTML = `
+                                    <i class="fa-regular fa-image" style="font-size:32px; color:#555;"></i>
+                                    <span>Image Load Nahi Ho Payi</span>
+                                    <span style="font-size:11px; color:#555; max-width:90%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">URL: ${this.src}</span>
+                                `;
+                                this.parentNode.insertBefore(errorBox, this);
+                            }
                         };
                     }
                 });
@@ -1285,4 +1235,4 @@ window.addEventListener('DOMContentLoaded', () => {
             observer.observe(feedArea, { childList: true, subtree: true });
         }
     }, 1000);
-});
+}); 
