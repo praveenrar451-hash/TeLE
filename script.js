@@ -58,11 +58,19 @@ window.switchView = function(viewId) {
 };
 
 async function loadUserData(username) {
-    const nameEl = document.getElementById('my-profile-username');
-    if (nameEl) nameEl.textContent = username;
+    document.getElementById('top-profile-username').textContent = username;
+    document.getElementById('my-profile-display-name').textContent = username;
+
+    const savedBio = localStorage.getItem(`userBio_${username}`) || 'Digital Creator';
+    document.getElementById('profile-bio-text').textContent = savedBio;
 
     const savedAvatar = localStorage.getItem(`userAvatar_${username}`);
-    const avatars = [document.getElementById('my-profile-avatar'), document.getElementById('nav-mini-avatar')];
+    const avatars = [
+        document.getElementById('my-profile-avatar'), 
+        document.getElementById('nav-mini-avatar'),
+        document.getElementById('feed-story-avatar')
+    ];
+    
     avatars.forEach(el => {
         if (!el) return;
         if (savedAvatar) {
@@ -83,6 +91,42 @@ async function loadUserData(username) {
         const { count: fgCount } = await supabaseClient.from('follows').select('*', { count: 'exact', head: true }).eq('follower', username);
         document.getElementById('profile-following-count').textContent = fgCount || 0;
     }
+}
+
+// Edit Profile Modal Controllers
+function openEditProfileModal() {
+    const username = localStorage.getItem('currentUsername');
+    const bio = document.getElementById('profile-bio-text').textContent;
+    
+    document.getElementById('edit-username-input').value = username;
+    document.getElementById('edit-bio-input').value = bio;
+    document.getElementById('edit-profile-modal').style.display = 'flex';
+}
+
+function closeEditProfileModal() {
+    document.getElementById('edit-profile-modal').style.display = 'none';
+}
+
+async function saveProfileChanges() {
+    const oldUsername = localStorage.getItem('currentUsername');
+    const newUsername = document.getElementById('edit-username-input').value.trim();
+    const newBio = document.getElementById('edit-bio-input').value.trim();
+
+    if (!newUsername) {
+        alert("Username cannot be empty");
+        return;
+    }
+
+    if (supabaseClient && newUsername !== oldUsername) {
+        await supabaseClient.from('users').update({ username: newUsername, bio: newBio }).eq('username', oldUsername);
+    }
+
+    localStorage.setItem('currentUsername', newUsername);
+    localStorage.setItem(`userBio_${newUsername}`, newBio);
+    
+    closeEditProfileModal();
+    loadUserData(newUsername);
+    alert("Profile updated successfully!");
 }
 
 function handleProfilePicUpload(event) {
