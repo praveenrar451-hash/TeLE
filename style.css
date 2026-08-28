@@ -345,3 +345,15 @@ body {
     width: 100%;
     font-size: 14px;
 }
+
+/* Chat Input Bar */
+.chat-input-bar {
+    display: flex;
+    padding: 10px 16px;
+    background: #000;
+    border-top: 1px solid #262626;
+    gap: 8px;
+    align-items: center;
+    position: sticky;
+    bottom: 0;
+}
