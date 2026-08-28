@@ -1,5 +1,5 @@
 // ==========================================
-// INSTA-TELE APP SCRIPT.JS (BULLETPROOF CHAT FIX)
+// INSTA-TELE APP SCRIPT.JS (FIXED REAL-TIME & STATE)
 // ==========================================
 
 const SUPABASE_URL = 'https://ydjbojsqeujahgqinfmk.supabase.co';
@@ -29,8 +29,9 @@ const userProfileReels = document.getElementById('user-profile-reels');
 
 let currentActiveView = 'login-container';
 let activeChatSubscription = null;
+let currentChatPartner = null; // Track current open chat
 
-function switchView(viewId) {
+function switchView(viewId, saveState = true) {
     document.querySelectorAll('.app-view').forEach(view => {
         view.classList.remove('active');
     });
@@ -38,6 +39,9 @@ function switchView(viewId) {
     if (target) {
         target.classList.add('active');
         currentActiveView = viewId;
+        if (saveState && viewId !== 'login-container') {
+            localStorage.setItem('lastActiveView', viewId);
+        }
     }
 }
 
@@ -83,12 +87,27 @@ if (loginBtn) {
     });
 }
 
+// ==========================================
+// AUTO RESTORE VIEW & STATE ON REFRESH
+// ==========================================
 window.addEventListener('DOMContentLoaded', () => {
     const savedUser = localStorage.getItem('currentUsername');
-    if (savedUser) {
-        initializeAppData(savedUser);
+    if (!savedUser) {
+        switchView('login-container', false);
+        return;
+    }
+
+    const lastView = localStorage.getItem('lastActiveView') || 'insta-feed-container';
+    
+    if (lastView === 'tele-chat-container') {
+        switchView('tele-chat-container', false);
+        fetchTelegramChats();
+    } else if (lastView === 'user-profile-container') {
+        switchView('user-profile-container', false);
+        openProfilePage(savedUser, true);
     } else {
-        switchView('login-container');
+        switchView('insta-feed-container', false);
+        fetchFeedPosts();
     }
 });
 
@@ -104,6 +123,7 @@ document.querySelectorAll('.insta-nav i').forEach(icon => {
         e.target.classList.add('active');
 
         if (chatWindowScreen) chatWindowScreen.classList.remove('active');
+        currentChatPartner = null;
         if (activeChatSubscription) {
             supabaseClient.removeChannel(activeChatSubscription);
             activeChatSubscription = null;
@@ -132,9 +152,15 @@ document.querySelectorAll('.infinity-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         if (currentActiveView === 'tele-chat-container') {
             switchView('insta-feed-container');
+            fetchFeedPosts();
         } else {
             if (reelsContainer) reelsContainer.classList.remove('active');
             if (chatWindowScreen) chatWindowScreen.classList.remove('active');
+            currentChatPartner = null;
+            if (activeChatSubscription) {
+                supabaseClient.removeChannel(activeChatSubscription);
+                activeChatSubscription = null;
+            }
             switchView('tele-chat-container');
             fetchTelegramChats();
         }
@@ -144,14 +170,15 @@ document.querySelectorAll('.infinity-btn').forEach(btn => {
 // Logout Handler
 document.querySelectorAll('.logout-icon-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-        localStorage.removeItem('currentUsername');
+        localStorage.clear();
         if (reelsContainer) reelsContainer.classList.remove('active');
         if (chatWindowScreen) chatWindowScreen.classList.remove('active');
+        currentChatPartner = null;
         if (activeChatSubscription) {
             supabaseClient.removeChannel(activeChatSubscription);
             activeChatSubscription = null;
         }
-        switchView('login-container');
+        switchView('login-container', false);
     });
 });
 
@@ -425,7 +452,7 @@ async function fetchReelsFromDatabase() {
 }
 
 // ==========================================
-// PROFILE, EDIT PROFILE & FOLLOWERS LIST SYSTEM
+// PROFILE SYSTEM
 // ==========================================
 async function openProfilePage(username, isOwnProfile) {
     const profileUsernameTitle = document.getElementById('profile-username-title');
@@ -584,7 +611,7 @@ async function openFollowListModal(username, type) {
     });
 }
 
-// Edit Profile Modal with Gallery Upload Button
+// Edit Profile Modal
 function openEditProfileModal(currentUsername) {
     let editModal = document.getElementById('edit-profile-modal-dynamic');
     if (!editModal) {
@@ -858,6 +885,7 @@ async function fetchTelegramChats() {
 async function openChatWindow(receiverName) {
     if (!chatWindowScreen) return;
     chatWindowScreen.classList.add('active');
+    currentChatPartner = receiverName;
 
     const chatTitle = document.getElementById('chat-win-username');
     const messagesArea = document.getElementById('chat-messages-area');
@@ -876,7 +904,7 @@ async function openChatWindow(receiverName) {
     }
 
     // Fetch existing messages
-    const { data: messages, error } = await supabaseClient
+    const { data: messages } = await supabaseClient
         .from('messages')
         .select('*')
         .or(`and(sender.eq.${myName},receiver.eq.${receiverName}),and(sender.eq.${receiverName},receiver.eq.${myName})`)
@@ -891,18 +919,20 @@ async function openChatWindow(receiverName) {
         }
     }
 
-    // Real-time listener
+    // REAL-TIME LISTENER FIX: BOTH SENT AND RECEIVED MESSAGES APPEAR INSTANTLY
     activeChatSubscription = supabaseClient
-        .channel(`chat_${Math.random()}`)
+        .channel(`chat_${myName}_${receiverName}_${Date.now()}`)
         .on('postgres_changes', { 
             event: 'INSERT', 
             schema: 'public', 
             table: 'messages' 
         }, payload => {
             const newMsg = payload.new;
+            // Check if message belongs to current chat conversation
             if ((newMsg.sender === myName && newMsg.receiver === receiverName) || 
                 (newMsg.sender === receiverName && newMsg.receiver === myName)) {
                 
+                // Avoid duplicating messages sent locally by current user
                 if (newMsg.sender !== myName) {
                     if (messagesArea.innerHTML.includes('No messages yet')) {
                         messagesArea.innerHTML = '';
@@ -916,6 +946,7 @@ async function openChatWindow(receiverName) {
     if (backBtn) {
         backBtn.onclick = () => {
             chatWindowScreen.classList.remove('active');
+            currentChatPartner = null;
             if (activeChatSubscription) {
                 supabaseClient.removeChannel(activeChatSubscription);
                 activeChatSubscription = null;
@@ -923,9 +954,8 @@ async function openChatWindow(receiverName) {
         };
     }
 
-    // UNIVERSAL BULLETPROOF SEND LOGIC
     const handleSendMessage = async (e) => {
-        if (e) e.preventDefault(); // Form reload rokne ke liye
+        if (e) e.preventDefault(); 
         
         const inputElem = document.getElementById('chat-msg-input');
         if (!inputElem) return;
@@ -938,6 +968,8 @@ async function openChatWindow(receiverName) {
         if (messagesArea.innerHTML.includes('No messages yet')) {
             messagesArea.innerHTML = '';
         }
+        
+        // Optimistically display sent message instantly
         appendChatMessage({ sender: myName, receiver: receiverName, message: text });
 
         const { error: sendError } = await supabaseClient
@@ -951,7 +983,6 @@ async function openChatWindow(receiverName) {
     };
 
     if (sendBtn) {
-        // Purane listeners clear karke naya lagane ke liye clone node use kiya hai
         const newSendBtn = sendBtn.cloneNode(true);
         sendBtn.parentNode.replaceChild(newSendBtn, sendBtn);
         
@@ -991,4 +1022,4 @@ function appendChatMessage(msg) {
 
     messagesArea.appendChild(msgBubble);
     messagesArea.scrollTop = messagesArea.scrollHeight;
-            }
+}
