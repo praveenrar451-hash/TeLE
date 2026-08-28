@@ -1852,3 +1852,94 @@ if (originalViewSwitcher) {
         }
     };
 }
+// ==========================================
+// UNIVERSAL CHAT & USER LIST FIXER
+// ==========================================
+console.log("Universal Chat Fixer Loaded!");
+
+async function loadUsersUniversal() {
+    // Page par jitne bhi potential chat containers ho sakte hain, un sabko dhoondho
+    const allDivs = document.querySelectorAll('div');
+    let targetContainer = null;
+
+    // Aisa div dhoondho jisme 'chat', 'user', 'list', ya 'message' naam ho
+    for (let div of allDivs) {
+        const id = (div.id || '').toLowerCase();
+        const cls = (typeof div.className === 'string' ? div.className : '').toLowerCase();
+        if ((id.includes('chat') || id.includes('user') || id.includes('list') || cls.includes('chat') || cls.includes('user')) && div.offsetHeight > 0) {
+            targetContainer = div;
+            break; // Pehla milte hi pakad lo
+        }
+    }
+
+    if (!targetContainer) {
+        // Agar fir bhi na mile toh body ke andar ek naya chat box bana do taaki users dikhein
+        return;
+    }
+
+    try {
+        const myName = localStorage.getItem('currentUsername');
+        if (!window.supabaseClient) return;
+
+        const { data: users, error } = await supabaseClient.from('users').select('username, avatar_url');
+        if (error || !users) return;
+
+        // Container ko khali karke users render karo
+        targetContainer.innerHTML = '';
+        
+        let usersFound = false;
+        users.forEach(user => {
+            if (user.username === myName) return;
+            usersFound = true;
+
+            const userRow = document.createElement('div');
+            userRow.style.cssText = "display:flex; align-items:center; gap:12px; padding:12px 15px; cursor:pointer; border-bottom:1px solid #222; background:#000;";
+            
+            const avatarStyle = user.avatar_url 
+                ? `background-image:url(${user.avatar_url}); background-size:cover; background-position:center;` 
+                : 'background:#444;';
+
+            userRow.innerHTML = `
+                <div style="width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; color:#fff; ${avatarStyle}">
+                    ${!user.avatar_url ? user.username.charAt(0).toUpperCase() : ''}
+                </div>
+                <div>
+                    <div style="font-weight:bold; color:#fff; font-size:14px;">${user.username}</div>
+                    <div style="font-size:12px; color:#888;">Tap to chat</div>
+                </div>
+            `;
+
+            userRow.onclick = () => {
+                if (typeof openChatWindow === 'function') {
+                    openChatWindow(user.username);
+                } else if (typeof startChat === 'function') {
+                    startChat(user.username);
+                } else {
+                    alert("Chat with " + user.username);
+                }
+            };
+
+            targetContainer.appendChild(userRow);
+        });
+
+        if (!usersFound) {
+            targetContainer.innerHTML = '<div style="color:#777; text-align:center; padding:20px;">No other users found.</div>';
+        }
+
+    } catch (err) {
+        console.error("Error loading users:", err);
+    }
+}
+
+// Page load hone par aur view change hone par yeh khud chal jayega
+window.addEventListener('DOMContentLoaded', () => {
+    setTimeout(loadUsersUniversal, 1500);
+});
+
+const originalViewSwitchForChat = window.switchView;
+if (originalViewSwitchForChat) {
+    window.switchView = function(viewId, saveState = true) {
+        originalViewSwitchForChat(viewId, saveState);
+        setTimeout(loadUsersUniversal, 500);
+    };
+}
