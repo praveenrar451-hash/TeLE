@@ -96,20 +96,60 @@
             </div>
         </div>
 
-        <!-- 5. PROFILE VIEW -->
-        <div id="profile-container" class="app-view">
-            <div class="top-header">
-                <h2 id="profile-display-name">Profile</h2>
-                <i class="fa-solid fa-right-from-bracket" onclick="handleLogout()" style="cursor:pointer; color:#ed4956;"></i>
-            </div>
-            <div style="padding:20px; display:flex; align-items:center; gap:20px; border-bottom:1px solid #262626;">
-                <div id="my-profile-avatar" class="avatar" style="width:70px; height:70px; font-size:24px;">U</div>
+        <!-- 5. PROFILE VIEW (Instagram Style) -->
+<div id="profile-container" class="app-view">
+    <div class="top-header">
+        <h2 id="profile-display-name">username</h2>
+        <div style="display: flex; gap: 15px; align-items: center; font-size: 20px;">
+            <i class="fa-solid fa-gear" onclick="alert('Settings & Privacy')" style="cursor:pointer; font-size: 18px;"></i>
+            <i class="fa-solid fa-right-from-bracket" onclick="handleLogout()" style="cursor:pointer; color:#ed4956; font-size: 18px;"></i>
+        </div>
+    </div>
+
+    <!-- Profile Header Info -->
+    <div style="padding: 15px 16px;">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+            <div id="my-profile-avatar" class="avatar" style="width: 80px; height: 80px; font-size: 30px;">U</div>
+            <div style="display: flex; gap: 20px; text-align: center; flex: 1; justify-content: space-around; margin-left: 15px;">
                 <div>
-                    <h3 id="my-profile-username">username</h3>
-                    <p style="font-size:13px; color:#aaa; margin-top:4px;">InstaTelegram User</p>
+                    <b id="profile-posts-count" style="font-size: 16px;">0</b>
+                    <p style="font-size: 12px; color: #aaa;">Posts</p>
+                </div>
+                <div>
+                    <b style="font-size: 16px;">142</b>
+                    <p style="font-size: 12px; color: #aaa;">Followers</p>
+                </div>
+                <div>
+                    <b style="font-size: 16px;">85</b>
+                    <p style="font-size: 12px; color: #aaa;">Following</p>
                 </div>
             </div>
         </div>
+
+        <!-- Bio Section -->
+        <div style="margin-top: 12px;">
+            <b id="my-profile-username" style="font-size: 14px;">username</b>
+            <p id="profile-bio-text" style="font-size: 13px; color: #ddd; margin-top: 2px;">Building InstaTelegram 🚀 | CSE Student 💻</p>
+        </div>
+
+        <!-- Profile Action Buttons -->
+        <div style="display: flex; gap: 8px; margin-top: 15px;">
+            <button onclick="editProfileBio()" style="flex: 1; background: #262626; color: #fff; border: none; padding: 7px; border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer;">Edit Profile</button>
+            <button onclick="alert('Profile Link Copied!')" style="flex: 1; background: #262626; color: #fff; border: none; padding: 7px; border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer;">Share Profile</button>
+        </div>
+    </div>
+
+    <!-- Profile Posts Grid Tabs -->
+    <div style="display: flex; border-top: 1px solid #262626; border-bottom: 1px solid #262626; margin-top: 10px;">
+        <div style="flex: 1; text-align: center; padding: 10px; border-bottom: 1.5px solid #fff; font-size: 16px;"><i class="fa-solid fa-table-cells"></i></div>
+        <div style="flex: 1; text-align: center; padding: 10px; color: #777; font-size: 16px;"><i class="fa-solid fa-bookmark"></i></div>
+    </div>
+
+    <!-- User Grid Posts Area -->
+    <div id="my-profile-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; background: #000; flex: 1;">
+        <!-- User posts will load here in grid format -->
+    </div>
+</div>
 
         <!-- INSTAGRAM BOTTOM NAVIGATION BAR -->
         <div class="bottom-nav" id="main-bottom-nav">
