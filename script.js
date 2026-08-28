@@ -725,3 +725,104 @@ window.addEventListener('DOMContentLoaded', () => {
         }
     }
 });
+// ==========================================
+// INSTAGRAM STYLE CROPPING & SEARCH FIX
+// ==========================================
+
+let selectedImageBase64 = null;
+
+// 1. Gallery se image select karne par Crop Preview Modal kholna
+function handleImageCropSelection(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        selectedImageBase64 = e.target.result;
+        showCropModal(selectedImageBase64);
+    };
+    reader.readAsDataURL(file);
+}
+
+function showCropModal(imgSrc) {
+    let modal = document.getElementById('crop-preview-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'crop-preview-modal';
+        modal.style.cssText = "display:flex; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:999; justify-content:center; align-items:center; padding:20px;";
+        document.body.appendChild(modal);
+    }
+
+    modal.innerHTML = `
+        <div style="background:#121212; padding:20px; border-radius:12px; width:100%; max-width:320px; text-align:center; border:1px solid #262626;">
+            <h3 style="font-size:15px; margin-bottom:15px; color:#fff;">Profile Picture Preview</h3>
+            <div style="width: 160px; height: 160px; border-radius: 50%; overflow: hidden; margin: 0 auto 15px auto; border: 3px solid #0095f6; background: #000;">
+                <img id="crop-preview-img" src="${imgSrc}" style="width:100%; height:100%; object-fit:cover;">
+            </div>
+            <p style="font-size:12px; color:#aaa; margin-bottom:15px;">Instagram style circle crop ready</p>
+            <div style="display:flex; gap:10px;">
+                <button onclick="saveCroppedProfilePic()" style="flex:1; background:#0095f6; color:#fff; border:none; padding:10px; border-radius:6px; font-weight:bold; cursor:pointer;">Done</button>
+                <button onclick="document.getElementById('crop-preview-modal').style.display='none'" style="flex:1; background:#333; color:#fff; border:none; padding:10px; border-radius:6px; cursor:pointer;">Cancel</button>
+            </div>
+        </div>
+    `;
+    modal.style.display = 'flex';
+}
+
+function saveCroppedProfilePic() {
+    if (!selectedImageBase64) return;
+    const username = localStorage.getItem('currentUsername');
+    
+    // Save locally & globally
+    localStorage.setItem(`userAvatar_${username}`, selectedImageBase64);
+    
+    const myAvatar = document.getElementById('my-profile-avatar');
+    if (myAvatar) {
+        myAvatar.style.backgroundImage = `url('${selectedImageBase64}')`;
+        myAvatar.style.backgroundSize = 'cover';
+        myAvatar.style.backgroundPosition = 'center';
+        myAvatar.textContent = '';
+    }
+
+    document.getElementById('crop-preview-modal').style.display = 'none';
+    alert("Profile picture updated successfully!");
+}
+
+
+// 2. Homepage Search Button Logic (User ID / Profile Open karne ke liye)
+// Homepage header mein search icon ya input add karne ke liye function:
+function setupHomepageSearch() {
+    const feedHeader = document.querySelector('#insta-feed-container .top-header');
+    if (feedHeader && !document.getElementById('home-search-icon')) {
+        const iconsDiv = feedHeader.querySelector('div');
+        if (iconsDiv) {
+            const searchIcon = document.createElement('i');
+            searchIcon.id = 'home-search-icon';
+            searchIcon.className = 'fa-solid fa-magnifying-glass';
+            searchIcon.style.cssText = "cursor:pointer; font-size:20px; margin-right:5px;";
+            searchIcon.onclick = () => {
+                // Explore view ya search modal kholo jo user ki profile khol sake
+                switchView('explore-container');
+            };
+            iconsDiv.prepend(searchIcon);
+        }
+    }
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+    setupHomepageSearch();
+    // Restore saved avatar
+    const username = localStorage.getItem('currentUsername');
+    if (username) {
+        const savedPic = localStorage.getItem(`userAvatar_${username}`);
+        if (savedPic) {
+            const myAvatar = document.getElementById('my-profile-avatar');
+            if (myAvatar) {
+                myAvatar.style.backgroundImage = `url('${savedPic}')`;
+                myAvatar.style.backgroundSize = 'cover';
+                myAvatar.style.backgroundPosition = 'center';
+                myAvatar.textContent = '';
+            }
+        }
+    }
+});
