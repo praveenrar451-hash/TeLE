@@ -285,3 +285,220 @@ window.switchView = function(viewId) {
         loadUserProfilePosts();
     }
 };
+// ==========================================
+// ADVANCED PROFILE & FOLLOW SYSTEM FIX
+// ==========================================
+
+// 1. Profile HTML update karein taaki modal aur dynamic list kaam kare
+document.addEventListener("DOMContentLoaded", () => {
+    const profileContainer = document.getElementById('profile-container');
+    if (profileContainer) {
+        // Stats container ko clickable banate hain taaki followers/following list khul sake
+        const statsBar = profileContainer.querySelector('div[style*="justify-content: space-around"]');
+        if (statsBar) {
+            statsBar.children[1].style.cursor = "pointer";
+            statsBar.children[1].onclick = () => openFollowersList('followers');
+            
+            statsBar.children[2].style.cursor = "pointer";
+            statsBar.children[2].onclick = () => openFollowersList('following');
+        }
+    }
+});
+
+// 2. Real Followers & Following Fetch Karne ka Function
+async function loadRealProfileStats(username) {
+    if (!supabaseClient) return;
+
+    // Posts count
+    const { count: postCount } = await supabaseClient.from('posts').select('*', { count: 'exact', head: true }).eq('username', username);
+    document.getElementById('profile-posts-count').textContent = postCount || 0;
+
+    // Followers count
+    const { count: followersCount } = await supabaseClient.from('follows').select('*', { count: 'exact', head: true }).eq('following', username);
+    const followersEl = document.getElementById('profile-followers-count');
+    if (followersEl) followersEl.textContent = followersCount || 0;
+
+    // Following count
+    const { count: followingCount } = await supabaseClient.from('follows').select('*', { count: 'exact', head: true }).eq('follower', username);
+    const followingEl = document.getElementById('profile-following-count');
+    if (followingEl) followingEl.textContent = followingCount || 0;
+}
+
+// 3. Followers / Following List Modal Show Karne ke liye
+async function openFollowersList(type) {
+    const myName = localStorage.getItem('currentUsername');
+    let modal = document.getElementById('follow-list-modal');
+    
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'follow-list-modal';
+        modal.style.cssText = "display:flex; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:400; justify-content:center; align-items:center; padding:20px;";
+        document.body.appendChild(modal);
+    }
+
+    modal.innerHTML = `
+        <div style="background:#121212; width:100%; max-width:350px; border-radius:12px; border:1px solid #262626; overflow:hidden; display:flex; flex-direction:column; max-height:80vh;">
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 16px; border-bottom:1px solid #262626;">
+                <b style="text-transform: capitalize;">${type}</b>
+                <i class="fa-solid fa-xmark" style="cursor:pointer; font-size:18px;" onclick="document.getElementById('follow-list-modal').style.display='none'"></i>
+            </div>
+            <div id="follow-modal-users" style="padding:10px; overflow-y:auto; flex:1;">
+                <div style="text-align:center; color:#777; padding:20px;">Loading...</div>
+            </div>
+        </div>
+    `;
+    modal.style.display = 'flex';
+
+    let usersList = [];
+    if (supabaseClient) {
+        if (type === 'followers') {
+            const { data } = await supabaseClient.from('follows').select('follower').eq('following', myName);
+            usersList = (data || []).map(item => item.follower);
+        } else {
+            const { data } = await supabaseClient.from('follows').select('following').eq('follower', myName);
+            usersList = (data || []).map(item => item.following);
+        }
+    }
+
+    const container = document.getElementById('follow-modal-users');
+    container.innerHTML = '';
+    
+    if (usersList.length === 0) {
+        container.innerHTML = `<div style="text-align:center; color:#777; padding:30px; font-size:13px;">No ${type} yet</div>`;
+        return;
+    }
+
+    usersList.forEach(user => {
+        const row = document.createElement('div');
+        row.className = 'chat-user-row';
+        row.innerHTML = `<div class="avatar">${user.charAt(0).toUpperCase()}</div><b>${user}</b>`;
+        row.onclick = () => {
+            modal.style.display = 'none';
+            openUserProfile(user);
+        };
+        container.appendChild(row);
+    });
+}
+
+// 4. Instagram Style Edit Profile Modal
+window.editProfileBio = function() {
+    const currentName = document.getElementById('profile-display-name').textContent;
+    const currentBio = document.getElementById('profile-bio-text').textContent;
+
+    let modal = document.getElementById('edit-profile-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'edit-profile-modal';
+        modal.style.cssText = "display:flex; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:400; justify-content:center; align-items:center; padding:20px;";
+        document.body.appendChild(modal);
+    }
+
+    modal.innerHTML = `
+        <div style="background:#121212; width:100%; max-width:380px; padding:20px; border-radius:12px; border:1px solid #262626;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                <h3 style="font-size:16px;">Edit Profile</h3>
+                <i class="fa-solid fa-xmark" style="cursor:pointer; font-size:18px;" onclick="document.getElementById('edit-profile-modal').style.display='none'"></i>
+            </div>
+            <label style="font-size:12px; color:#aaa;">Name</label>
+            <input type="text" id="edit-name-input" class="auth-input" value="${currentName}" style="margin-top:4px;">
+            
+            <label style="font-size:12px; color:#aaa; margin-top:10px; display:block;">Bio</label>
+            <textarea id="edit-bio-input" class="auth-input" style="height:70px; resize:none; margin-top:4px;">${currentBio}</textarea>
+            
+            <button class="auth-btn" onclick="saveProfileChanges()">Done</button>
+        </div>
+    `;
+    modal.style.display = 'flex';
+}
+
+function saveProfileChanges() {
+    const newName = document.getElementById('edit-name-input').value.trim();
+    const newBio = document.getElementById('edit-bio-input').value.trim();
+
+    if (newName) {
+        document.getElementById('profile-display-name').textContent = newName;
+        document.getElementById('my-profile-username').textContent = newName;
+    }
+    if (newBio) {
+        document.getElementById('profile-bio-text').textContent = newBio;
+    }
+
+    document.getElementById('edit-profile-modal').style.display = 'none';
+}
+
+// 5. Kisi aur ki Profile kholne par Instagram jaisa Follow/Message buttons dena
+async function openUserProfile(targetUsername) {
+    const myName = localStorage.getItem('currentUsername');
+    if (targetUsername === myName) {
+        switchView('profile-container');
+        return;
+    }
+
+    let view = document.getElementById('other-profile-container');
+    if (!view) {
+        view = document.createElement('div');
+        view.id = 'other-profile-container';
+        view.className = 'app-view';
+        document.getElementById('app-container').appendChild(view);
+    }
+
+    document.querySelectorAll('.app-view').forEach(v => v.classList.remove('active'));
+    view.classList.add('active');
+    view.innerHTML = '<div style="text-align:center; color:#777; padding:40px;">Loading profile...</div>';
+
+    // Check if already following
+    let isFollowing = false;
+    if (supabaseClient) {
+        const { data } = await supabaseClient.from('follows').select('*').eq('follower', myName).eq('following', targetUsername).single();
+        if (data) isFollowing = true;
+    }
+
+    view.innerHTML = `
+        <div class="top-header">
+            <div style="display:flex; align-items:center; gap:10px;">
+                <i class="fa-solid fa-arrow-left" onclick="switchView('insta-feed-container')" style="cursor:pointer;"></i>
+                <h2>${targetUsername}</h2>
+            </div>
+        </div>
+        <div style="padding:15px 16px;">
+            <div style="display:flex; align-items:center; justify-content:space-between;">
+                <div class="avatar" style="width:80px; height:80px; font-size:30px;">${targetUsername.charAt(0).toUpperCase()}</div>
+                <div style="display:flex; gap:20px; text-align:center; flex:1; justify-content:space-around; margin-left:15px;">
+                    <div><b>-</b><p style="font-size:12px; color:#aaa;">Posts</p></div>
+                    <div><b>-</b><p style="font-size:12px; color:#aaa;">Followers</p></div>
+                    <div><b>-</b><p style="font-size:12px; color:#aaa;">Following</p></div>
+                </div>
+            </div>
+            <div style="margin-top:12px;">
+                <b>${targetUsername}</b>
+                <p style="font-size:13px; color:#ddd; margin-top:2px;">InstaTelegram User</p>
+            </div>
+            <div style="display:flex; gap:8px; margin-top:15px;">
+                <button id="follow-action-btn" onclick="toggleFollowUser('${targetUsername}')" style="flex:1; background:${isFollowing ? '#262626' : '#0095f6'}; color:#fff; border:none; padding:7px; border-radius:6px; font-weight:600; font-size:13px; cursor:pointer;">${isFollowing ? 'Following' : 'Follow'}</button>
+                <button onclick="switchView('chat-container'); openChatWindow('${targetUsername}');" style="flex:1; background:#262626; color:#fff; border:none; padding:7px; border-radius:6px; font-weight:600; font-size:13px; cursor:pointer;">Message</button>
+            </div>
+        </div>
+    `;
+}
+
+// 6. Follow / Unfollow Toggle Functionality
+async function toggleFollowUser(targetUsername) {
+    const myName = localStorage.getItem('currentUsername');
+    const btn = document.getElementById('follow-action-btn');
+    
+    if (!supabaseClient) return;
+
+    if (btn.textContent === 'Follow') {
+        const { error } = await supabaseClient.from('follows').insert([{ follower: myName, following: targetUsername }]);
+        if (!error) {
+            btn.textContent = 'Following';
+            btn.style.background = '#262626';
+        }
+    } else {
+        const { error } = await supabaseClient.from('follows').delete().eq('follower', myName).eq('following', targetUsername);
+        if (!error) {
+            btn.textContent = 'Follow';
+            btn.style.background = '#0095f6';
+        }
+    }
+}
