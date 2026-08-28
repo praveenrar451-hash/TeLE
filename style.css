@@ -3,6 +3,7 @@
     padding: 0;
     box-sizing: border-box;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-tap-highlight-color: transparent;
 }
 
 body {
@@ -12,12 +13,13 @@ body {
     justify-content: center;
     align-items: center;
     height: 100vh;
+    height: 100dvh;
     overflow: hidden;
 }
 
 #app-container {
     width: 100%;
-    max-width: 470px;
+    max-width: 480px;
     height: 100%;
     background: #000;
     position: relative;
@@ -25,11 +27,12 @@ body {
     flex-direction: column;
 }
 
-@media (min-width: 471px) {
+@media (min-width: 481px) {
     #app-container {
-        height: 90vh;
+        height: 92vh;
         border: 1px solid #262626;
-        border-radius: 8px;
+        border-radius: 12px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.8);
     }
 }
 
@@ -87,6 +90,28 @@ body {
     font-size: 14px;
     cursor: pointer;
     margin-top: 5px;
+}
+
+/* Modals */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.7);
+    z-index: 2000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+.modal-box {
+    background: #262626;
+    width: 90%;
+    max-width: 340px;
+    padding: 20px;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
 }
 
 /* Top Header */
