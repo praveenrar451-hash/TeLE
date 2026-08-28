@@ -1,5 +1,5 @@
 // ==========================================
-// INSTA-TELE APP SCRIPT.JS (FIXED REAL-TIME & STATE)
+// INSTA-TELE APP SCRIPT.JS (COMPLETE FEATURES UPDATE)
 // ==========================================
 
 const SUPABASE_URL = 'https://ydjbojsqeujahgqinfmk.supabase.co';
@@ -29,7 +29,9 @@ const userProfileReels = document.getElementById('user-profile-reels');
 
 let currentActiveView = 'login-container';
 let activeChatSubscription = null;
-let currentChatPartner = null; // Track current open chat
+let currentChatPartner = null;
+let globalPresenceChannel = null;
+let typingTimeout = null;
 
 function switchView(viewId, saveState = true) {
     document.querySelectorAll('.app-view').forEach(view => {
@@ -45,8 +47,56 @@ function switchView(viewId, saveState = true) {
     }
 }
 
+// Notification Sound Generator (Web Audio API - No external file needed)
+function playNotificationSound() {
+    try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5 note
+        osc.frequency.exponentialRampToValueAtTime(880, audioCtx.currentTime + 0.15); // A5 note
+        gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.3);
+    } catch (e) {
+        console.log("Audio not allowed yet");
+    }
+}
+
+// Show Floating Notification Popup
+function showNotificationPopup(sender, message) {
+    playNotificationSound();
+    
+    let existingPopup = document.getElementById('global-notif-popup');
+    if (existingPopup) existingPopup.remove();
+
+    const popup = document.createElement('div');
+    popup.id = 'global-notif-popup';
+    popup.style.cssText = "position:fixed; top:20px; left:50%; transform:translateX(-50%); background:#1f1f1f; border:1px solid #333; color:#fff; padding:12px 18px; border-radius:12px; z-index:9999999; box-shadow:0 8px 24px rgba(0,0,0,0.6); display:flex; align-items:center; gap:12px; max-width:90%; width:340px; animation: slideDown 0.3s ease;";
+    
+    popup.innerHTML = `
+        <div style="width:38px; height:38px; background:#0095f6; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:15px; flex-shrink:0;">${sender.charAt(0).toUpperCase()}</div>
+        <div style="flex:1; overflow:hidden;">
+            <div style="font-weight:bold; font-size:13px; color:#fff;">New message from ${sender}</div>
+            <div style="font-size:12px; color:#aaa; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px;">${message}</div>
+        </div>
+    `;
+
+    document.body.appendChild(popup);
+
+    setTimeout(() => {
+        popup.style.opacity = '0';
+        popup.style.transition = 'opacity 0.3s ease';
+        setTimeout(() => popup.remove(), 300);
+    }, 3500);
+}
+
 // ==========================================
-// LOGIN HANDLER WITH FIXED PASSWORD (272009)
+// LOGIN HANDLER
 // ==========================================
 if (loginBtn) {
     loginBtn.addEventListener('click', async () => {
@@ -72,7 +122,9 @@ if (loginBtn) {
                 .single();
 
             if (!data) {
-                await supabaseClient.from('users').insert([{ username: username, avatar_url: '' }]);
+                await supabaseClient.from('users').insert([{ username: username, avatar_url: '', is_online: true }]);
+            } else {
+                await supabaseClient.from('users').update({ is_online: true }).eq('username', username);
             }
 
             localStorage.setItem('currentUsername', username);
@@ -88,7 +140,7 @@ if (loginBtn) {
 }
 
 // ==========================================
-// AUTO RESTORE VIEW & STATE ON REFRESH
+// AUTO RESTORE VIEW & GLOBAL NOTIFICATION LISTENER
 // ==========================================
 window.addEventListener('DOMContentLoaded', () => {
     const savedUser = localStorage.getItem('currentUsername');
@@ -96,6 +148,8 @@ window.addEventListener('DOMContentLoaded', () => {
         switchView('login-container', false);
         return;
     }
+
+    setupGlobalPresenceAndNotifications(savedUser);
 
     const lastView = localStorage.getItem('lastActiveView') || 'insta-feed-container';
     
@@ -111,7 +165,40 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+// Global Notification & Online Status Tracker
+function setupGlobalPresenceAndNotifications(username) {
+    // Set online status
+    supabaseClient.from('users').update({ is_online: true, last_seen: new Date() }).eq('username', username).then();
+
+    // Heartbeat to keep online status active every 30 seconds
+    setInterval(() => {
+        supabaseClient.from('users').update({ last_seen: new Date() }).eq('username', username).then();
+    }, 30000);
+
+    // Window close handler to mark offline
+    window.addEventListener('beforeunload', () => {
+        supabaseClient.from('users').update({ is_online: false, last_seen: new Date() }).eq('username', username).then();
+    });
+
+    // Listen globally for incoming messages (to show notifications when not in active chat)
+    if (globalPresenceChannel) supabaseClient.removeChannel(globalPresenceChannel);
+
+    globalPresenceChannel = supabaseClient
+        .channel('global_notifications_' + username)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
+            const newMsg = payload.new;
+            if (newMsg.receiver === username && newMsg.sender !== currentChatPartner) {
+                showNotificationPopup(newMsg.sender, newMsg.message);
+                if (currentActiveView === 'tele-chat-container') {
+                    fetchTelegramChats();
+                }
+            }
+        })
+        .subscribe();
+}
+
 function initializeAppData(username) {
+    setupGlobalPresenceAndNotifications(username);
     switchView('insta-feed-container');
     fetchFeedPosts();
 }
@@ -169,7 +256,11 @@ document.querySelectorAll('.infinity-btn').forEach(btn => {
 
 // Logout Handler
 document.querySelectorAll('.logout-icon-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
+        const myName = localStorage.getItem('currentUsername');
+        if (myName) {
+            await supabaseClient.from('users').update({ is_online: false, last_seen: new Date() }).eq('username', myName);
+        }
         localStorage.clear();
         if (reelsContainer) reelsContainer.classList.remove('active');
         if (chatWindowScreen) chatWindowScreen.classList.remove('active');
@@ -190,7 +281,7 @@ if (closeUploadModalBtn) {
     });
 }
 
-// Fetch Feed Posts
+// Fetch Feed Posts (With synchronized avatar loader)
 async function fetchFeedPosts() {
     if (!feedPostsArea) return;
     feedPostsArea.innerHTML = '<p style="color:#777; text-align:center; margin-top:20px;">Loading posts...</p>';
@@ -213,6 +304,13 @@ async function fetchFeedPosts() {
 
     const myName = localStorage.getItem('currentUsername');
 
+    // Fetch all user avatars to sync across posts
+    const { data: usersData } = await supabaseClient.from('users').select('username, avatar_url');
+    const userAvatarMap = {};
+    if (usersData) {
+        usersData.forEach(u => userAvatarMap[u.username] = u.avatar_url);
+    }
+
     for (let post of data) {
         const { count: likesCount } = await supabaseClient.from('likes').select('*', { count: 'exact', head: true }).eq('post_id', post.id);
         const { data: myLike } = await supabaseClient.from('likes').select('*').eq('post_id', post.id).eq('username', myName);
@@ -220,12 +318,14 @@ async function fetchFeedPosts() {
 
         const { data: comments } = await supabaseClient.from('comments').select('*').eq('post_id', post.id).order('created_at', { ascending: true });
 
+        const authorAvatar = userAvatarMap[post.username] || '';
+
         const postCard = document.createElement('div');
         postCard.style.cssText = "background:#000; border-bottom:1px solid #262626; margin-bottom:15px;";
         postCard.innerHTML = `
             <div style="display:flex; align-items:center; justify-content:space-between; padding:10px 12px;">
                 <div style="display:flex; align-items:center; gap:10px; cursor:pointer;" class="post-user-header" data-user="${post.username}">
-                    <div style="width:32px; height:32px; background:#444; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:14px;">${post.username.charAt(0).toUpperCase()}</div>
+                    <div style="width:32px; height:32px; background:#444; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:14px; overflow:hidden; ${authorAvatar ? `background-image:url(${authorAvatar}); background-size:cover;` : ''}">${!authorAvatar ? post.username.charAt(0).toUpperCase() : ''}</div>
                     <b style="font-size:13px;">${post.username}</b>
                 </div>
             </div>
@@ -322,6 +422,9 @@ async function fetchReelsFromDatabase() {
     }
 
     const myName = localStorage.getItem('currentUsername');
+    const { data: usersData } = await supabaseClient.from('users').select('username, avatar_url');
+    const userAvatarMap = {};
+    if (usersData) usersData.forEach(u => userAvatarMap[u.username] = u.avatar_url);
 
     for (let reel of data) {
         const { count: likesCount } = await supabaseClient.from('reel_likes').select('*', { count: 'exact', head: true }).eq('reel_id', reel.id);
@@ -329,6 +432,7 @@ async function fetchReelsFromDatabase() {
         const isLiked = myLike && myLike.length > 0;
 
         const { data: comments } = await supabaseClient.from('reel_comments').select('*').eq('reel_id', reel.id).order('created_at', { ascending: true });
+        const authorAvatar = userAvatarMap[reel.username] || '';
 
         const reelCard = document.createElement('div');
         reelCard.style.cssText = "width:100%; height:100%; scroll-snap-align:start; position:relative; display:flex; justify-content:center; align-items:center; background:#000; flex-shrink:0;";
@@ -338,7 +442,7 @@ async function fetchReelsFromDatabase() {
             
             <div style="position:absolute; bottom:20px; left:15px; right:70px; z-index:2; text-shadow:0 1px 3px rgba(0,0,0,0.8);">
                 <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px; cursor:pointer;" class="reel-user-profile" data-user="${reel.username}">
-                    <div style="width:32px; height:32px; background:#444; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:14px;">${reel.username.charAt(0).toUpperCase()}</div>
+                    <div style="width:32px; height:32px; background:#444; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:14px; overflow:hidden; ${authorAvatar ? `background-image:url(${authorAvatar}); background-size:cover;` : ''}">${!authorAvatar ? reel.username.charAt(0).toUpperCase() : ''}</div>
                     <b style="font-size:14px;">${reel.username}</b>
                 </div>
                 <p style="margin:0; font-size:13px; line-height:1.4;">${reel.caption || ''}</p>
@@ -452,7 +556,7 @@ async function fetchReelsFromDatabase() {
 }
 
 // ==========================================
-// PROFILE SYSTEM
+// PROFILE SYSTEM (Fully synchronized avatar update)
 // ==========================================
 async function openProfilePage(username, isOwnProfile) {
     const profileUsernameTitle = document.getElementById('profile-username-title');
@@ -463,16 +567,16 @@ async function openProfilePage(username, isOwnProfile) {
     const profileActionButton = document.getElementById('profile-action-button');
 
     if (profileUsernameTitle) profileUsernameTitle.textContent = username;
-    if (profileAvatar) profileAvatar.textContent = username.charAt(0).toUpperCase();
+    if (profileAvatar) {
+        profileAvatar.style.backgroundImage = 'none';
+        profileAvatar.textContent = username.charAt(0).toUpperCase();
+    }
 
     const { data: userData } = await supabaseClient.from('users').select('avatar_url').eq('username', username).single();
     if (userData && userData.avatar_url && profileAvatar) {
         profileAvatar.style.backgroundImage = `url(${userData.avatar_url})`;
         profileAvatar.style.backgroundSize = 'cover';
         profileAvatar.textContent = '';
-    } else if (profileAvatar) {
-        profileAvatar.style.backgroundImage = 'none';
-        profileAvatar.textContent = username.charAt(0).toUpperCase();
     }
 
     const { count: pCount } = await supabaseClient.from('posts').select('*', { count: 'exact', head: true }).eq('username', username);
@@ -545,7 +649,7 @@ async function openProfilePage(username, isOwnProfile) {
     }
 }
 
-// Follower / Following List Popup Modal
+// Follow List Modal
 async function openFollowListModal(username, type) {
     let listModal = document.getElementById('follow-list-modal-dynamic');
     if (!listModal) {
@@ -589,13 +693,18 @@ async function openFollowListModal(username, type) {
         return;
     }
 
+    const { data: usersData } = await supabaseClient.from('users').select('username, avatar_url');
+    const userAvatarMap = {};
+    if (usersData) usersData.forEach(u => userAvatarMap[u.username] = u.avatar_url);
+
     data.forEach(item => {
         const targetUser = type === 'followers' ? item.follower : item.following;
+        const targetAvatar = userAvatarMap[targetUser] || '';
         
         const userRow = document.createElement('div');
         userRow.style.cssText = "display:flex; align-items:center; gap:12px; cursor:pointer; padding:6px 0;";
         userRow.innerHTML = `
-            <div style="width:38px; height:38px; background:#333; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:15px;">${targetUser.charAt(0).toUpperCase()}</div>
+            <div style="width:38px; height:38px; background:#333; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:15px; overflow:hidden; ${targetAvatar ? `background-image:url(${targetAvatar}); background-size:cover;` : ''}">${!targetAvatar ? targetUser.charAt(0).toUpperCase() : ''}</div>
             <div style="flex:1;">
                 <b style="font-size:14px; color:#fff;">${targetUser}</b>
             </div>
@@ -694,6 +803,8 @@ function openEditProfileModal(currentUsername) {
         await supabaseClient.from('reels').update({ username: newUsernameInput }).eq('username', currentUsername);
         await supabaseClient.from('likes').update({ username: newUsernameInput }).eq('username', currentUsername);
         await supabaseClient.from('comments').update({ username: newUsernameInput }).eq('username', currentUsername);
+        await supabaseClient.from('messages').update({ sender: newUsernameInput }).eq('sender', currentUsername);
+        await supabaseClient.from('messages').update({ receiver: newUsernameInput }).eq('receiver', currentUsername);
 
         localStorage.setItem('currentUsername', newUsernameInput);
         editModal.style.display = 'none';
@@ -845,7 +956,9 @@ function openDetailView(type, itemData, profileUser) {
     }
 }
 
-// Telegram Chat System
+// ==========================================
+// TELEGRAM CHAT SYSTEM (Online/Offline, Typing Indicator & Popup)
+// ==========================================
 async function fetchTelegramChats() {
     const teleListArea = document.getElementById('tele-chats-list');
     if (!teleListArea) return;
@@ -860,17 +973,26 @@ async function fetchTelegramChats() {
 
     teleListArea.innerHTML = '';
     const myName = localStorage.getItem('currentUsername');
+    const now = new Date();
 
     users.forEach(user => {
         if (user.username === myName) return;
 
+        // Check if user is online (active within last 45 seconds or flagged true)
+        const lastSeenDate = user.last_seen ? new Date(user.last_seen) : null;
+        const isOnline = user.is_online && lastSeenDate && (now - lastSeenDate < 45000);
+        const avatarUrl = user.avatar_url || '';
+
         const chatItem = document.createElement('div');
         chatItem.style.cssText = "display:flex; align-items:center; gap:12px; padding:12px 16px; cursor:pointer; border-bottom:1px solid #1a1a1a;";
         chatItem.innerHTML = `
-            <div style="width:45px; height:45px; background:#333; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:16px;">${user.username.charAt(0).toUpperCase()}</div>
+            <div style="position:relative;">
+                <div style="width:45px; height:45px; background:#333; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:16px; overflow:hidden; ${avatarUrl ? `background-image:url(${avatarUrl}); background-size:cover;` : ''}">${!avatarUrl ? user.username.charAt(0).toUpperCase() : ''}</div>
+                ${isOnline ? `<div style="position:absolute; bottom:1px; right:1px; width:11px; height:11px; background:#2ecc71; border:2px solid #000; border-radius:50%;"></div>` : ''}
+            </div>
             <div style="flex:1;">
                 <h4 style="margin:0; font-size:15px; color:#fff;">${user.username}</h4>
-                <p style="margin:3px 0 0 0; font-size:13px; color:#888;">Tap to chat</p>
+                <p style="margin:3px 0 0 0; font-size:13px; color:${user.typing_to === myName ? '#0095f6' : '#888'};">${user.typing_to === myName ? 'typing...' : (isOnline ? 'Online' : 'Offline')}</p>
             </div>
         `;
 
@@ -882,9 +1004,6 @@ async function fetchTelegramChats() {
     });
 }
 
-            // ==========================================
-// FIXED CHAT WINDOW WITH INSTANT AUTO-REFRESH & REAL-TIME
-// ==========================================
 async function openChatWindow(receiverName) {
     if (!chatWindowScreen) return;
     chatWindowScreen.classList.add('active');
@@ -906,7 +1025,29 @@ async function openChatWindow(receiverName) {
         activeChatSubscription = null;
     }
 
-    // Function to load messages from database
+    // Header subtext container for online/typing status
+    let statusSubtitle = document.getElementById('chat-win-status');
+    if (!statusSubtitle && chatTitle) {
+        statusSubtitle = document.createElement('div');
+        statusSubtitle.id = 'chat-win-status';
+        statusSubtitle.style.cssText = "font-size:11px; color:#888; font-weight:normal; margin-top:2px;";
+        chatTitle.parentNode.appendChild(statusSubtitle);
+    }
+
+    const updatePartnerStatusInfo = async () => {
+        const { data: uData } = await supabaseClient.from('users').select('is_online, last_seen, typing_to').eq('username', receiverName).single();
+        if (uData && statusSubtitle) {
+            if (uData.typing_to === myName) {
+                statusSubtitle.textContent = "typing...";
+                statusSubtitle.style.color = "#0095f6";
+            } else {
+                const isOnline = uData.is_online && uData.last_seen && (new Date() - new Date(uData.last_seen) < 45000);
+                statusSubtitle.textContent = isOnline ? "Online" : "Offline";
+                statusSubtitle.style.color = isOnline ? "#2ecc71" : "#888";
+            }
+        }
+    };
+
     const loadMessages = async (scrollToBottom = true) => {
         const { data: messages } = await supabaseClient
             .from('messages')
@@ -928,13 +1069,12 @@ async function openChatWindow(receiverName) {
                 messagesArea.innerHTML = '<p style="color:#555; text-align:center; margin-top:20px; font-size:12px;">No messages yet. Say hello!</p>';
             }
         }
+        updatePartnerStatusInfo();
     };
 
-    // Initial load
     await loadMessages(true);
 
-    // AUTO-POLLING INTERVAL (Checks for new messages every 1.5 seconds automatically)
-    // Yeh bina back kiye saamne wale ke bhejhe huye msg turant screen par la dega
+    // Polling Interval for Status & Messages
     const pollingInterval = setInterval(() => {
         if (currentChatPartner !== receiverName) {
             clearInterval(pollingInterval);
@@ -943,32 +1083,56 @@ async function openChatWindow(receiverName) {
         loadMessages(false);
     }, 1500);
 
-    // Realtime listener setup
+    // Realtime Listener for messages & typing
     activeChatSubscription = supabaseClient
-        .channel(`chat_${myName}_${receiverName}_${Date.now()}`)
-        .on('postgres_changes', { 
-            event: 'INSERT', 
-            schema: 'public', 
-            table: 'messages' 
-        }, payload => {
+        .channel(`chat_room_${myName}_${receiverName}_${Date.now()}`)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
             const newMsg = payload.new;
             if ((newMsg.sender === myName && newMsg.receiver === receiverName) || 
                 (newMsg.sender === receiverName && newMsg.receiver === myName)) {
                 loadMessages(false);
+                if (newMsg.sender === receiverName) {
+                    playNotificationSound();
+                }
             }
         })
         .subscribe();
 
     if (backBtn) {
-        backBtn.onclick = () => {
+        backBtn.onclick = async () => {
             clearInterval(pollingInterval);
+            await supabaseClient.from('users').update({ typing_to: null }).eq('username', myName);
             chatWindowScreen.classList.remove('active');
             currentChatPartner = null;
             if (activeChatSubscription) {
                 supabaseClient.removeChannel(activeChatSubscription);
                 activeChatSubscription = null;
             }
+            if (currentActiveView === 'tele-chat-container') {
+                fetchTelegramChats();
+            }
         };
+    }
+
+    // Typing Event Trigger
+    if (chatInput) {
+        const newInput = chatInput.cloneNode(true);
+        chatInput.parentNode.replaceChild(newInput, chatInput);
+
+        newInput.addEventListener('input', async () => {
+            await supabaseClient.from('users').update({ typing_to: receiverName }).eq('username', myName);
+            
+            clearTimeout(typingTimeout);
+            typingTimeout = setTimeout(async () => {
+                await supabaseClient.from('users').update({ typing_to: null }).eq('username', myName);
+            }, 2000);
+        });
+
+        newInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                handleSendMessage(e);
+            }
+        });
     }
 
     const handleSendMessage = async (e) => {
@@ -981,12 +1145,12 @@ async function openChatWindow(receiverName) {
         if (!text) return;
 
         inputElem.value = '';
+        await supabaseClient.from('users').update({ typing_to: null }).eq('username', myName);
 
         if (messagesArea.innerHTML.includes('No messages yet')) {
             messagesArea.innerHTML = '';
         }
         
-        // Optimistically display sent message instantly
         appendChatMessage({ sender: myName, receiver: receiverName, message: text });
         messagesArea.scrollTop = messagesArea.scrollHeight;
 
@@ -996,7 +1160,6 @@ async function openChatWindow(receiverName) {
 
         if (sendError) {
             console.error("Database insert error:", sendError);
-            alert("Database Error: " + (sendError.message || "Failed to send message"));
         } else {
             loadMessages(false);
         }
@@ -1010,17 +1173,6 @@ async function openChatWindow(receiverName) {
         newSendBtn.addEventListener('touchend', (e) => {
             e.preventDefault();
             handleSendMessage();
-        });
-    }
-
-    if (chatInput) {
-        const newInput = chatInput.cloneNode(true);
-        chatInput.parentNode.replaceChild(newInput, chatInput);
-
-        newInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                handleSendMessage(e);
-            }
         });
     }
 }
@@ -1042,4 +1194,4 @@ function appendChatMessage(msg) {
 
     messagesArea.appendChild(msgBubble);
     messagesArea.scrollTop = messagesArea.scrollHeight;
-}
+                                                                                                                                                                                                            }
