@@ -3,176 +3,132 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>InstaTelegram</title>
+    <title>InstaUltra Pro</title>
     <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Supabase CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
+    <!-- App Container -->
     <div id="app-container">
 
-        <!-- AUTHENTICATION VIEW (Login / Signup) -->
-        <div id="auth-container" class="active">
-            <h1 class="insta-logo">InstaTelegram</h1>
-            
-            <!-- Login Box -->
-            <div id="login-form-box" style="width: 100%;">
-                <input type="email" id="login-email" class="auth-input" placeholder="Email">
-                <input type="password" id="login-password" class="auth-input" placeholder="Password">
-                <button class="auth-btn" onclick="handleLogin()">Log In</button>
-                <div class="auth-switch" onclick="toggleAuthMode(true)">Don't have an account? <span>Sign up</span></div>
-            </div>
-
-            <!-- Signup Box -->
-            <div id="signup-form-box" style="width: 100%; display: none;">
-                <input type="text" id="signup-username" class="auth-input" placeholder="Username">
-                <input type="email" id="signup-email" class="auth-input" placeholder="Email">
-                <input type="password" id="signup-password" class="auth-input" placeholder="Password">
-                <button class="auth-btn" onclick="handleSignup()">Sign Up</button>
-                <div class="auth-switch" onclick="toggleAuthMode(false)">Have an account? <span>Log in</span></div>
+        <!-- AUTH VIEW (Login / Signup) -->
+        <div id="auth-container" class="app-view active">
+            <div class="auth-box">
+                <h1 class="app-logo">InstaUltra</h1>
+                <p class="auth-sub">Connect with friends and the world around you.</p>
+                <input type="text" id="auth-username" placeholder="Enter username (e.g. alex_99)" class="auth-input">
+                <input type="password" id="auth-password" placeholder="Password" class="auth-input">
+                <button onclick="handleAuthLogin()" class="auth-btn">Continue</button>
             </div>
         </div>
 
-        <!-- 1. INSTAGRAM FEED VIEW -->
-        <div id="insta-feed-container" class="app-view">
+        <!-- MAIN APP CONTENT (Hidden initially until login) -->
+        <div id="main-app-content" style="display: none; height: 100%;">
+            
+            <!-- TOP HEADER -->
             <div class="top-header">
-                <h2>InstaTelegram</h2>
-                <div style="display: flex; gap: 15px; font-size: 20px;">
-                    <i class="fa-regular fa-square-plus" onclick="openUploadModal()" style="cursor:pointer;"></i>
-                    <i class="fa-brands fa-telegram-plane" onclick="switchView('chat-container')" style="cursor:pointer;"></i>
+                <h2 class="header-logo">InstaUltra</h2>
+                <div class="header-icons">
+                    <i class="fa-regular fa-heart" onclick="switchView('notifications-container')" title="Notifications"></i>
+                    <i class="fa-regular fa-paper-plane" onclick="switchView('chat-container')" title="Messages"></i>
                 </div>
             </div>
-            <div id="feed-posts-area" style="flex: 1; overflow-y: auto;">
-                <!-- Dynamic Posts Here -->
-            </div>
-        </div>
 
-        <!-- 2. EXPLORE / SEARCH VIEW -->
-        <div id="explore-container" class="app-view">
-            <div class="top-header">
-                <h2>Explore</h2>
-            </div>
-            <div style="padding: 15px;">
-                <input type="text" id="global-user-search" class="auth-input" placeholder="Search user to message..." oninput="searchGlobalUsers(this.value)">
-                <div id="search-results-list" style="margin-top: 10px;"></div>
-            </div>
-        </div>
-
-        <!-- 3. UPLOAD POST VIEW / MODAL -->
-        <div id="upload-modal" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:300; justify-content:center; align-items:center; padding:20px;">
-            <div style="background:#121212; padding:20px; border-radius:10px; width:100%; max-width:400px; border:1px solid #262626;">
-                <h3 style="margin-bottom:15px;">Create New Post</h3>
-                <input type="text" id="upload-image-url" class="auth-input" placeholder="Image URL">
-                <input type="text" id="upload-caption-text" class="auth-input" placeholder="Write a caption...">
-                <button class="auth-btn" onclick="submitNewPost()">Share Post</button>
-                <button class="auth-btn" style="background:#444; margin-top:5px;" onclick="closeUploadModal()">Cancel</button>
-            </div>
-        </div>
-
-        <!-- 4. TELEGRAM CHAT LIST VIEW -->
-        <div id="chat-container" class="app-view">
-            <div class="top-header">
-                <h2>Chats</h2>
-                <i class="fa-solid fa-magnifying-glass" onclick="switchView('explore-container')" style="cursor:pointer;"></i>
-            </div>
-            <div id="chat-users-list" style="flex:1; overflow-y:auto;">
-                <!-- Active Chats Here -->
+            <!-- VIEW 1: HOME FEED -->
+            <div id="insta-feed-container" class="app-view active-view">
+                <!-- Stories Tray -->
+                <div class="stories-tray" id="stories-tray-container">
+                    <!-- Dynamic Stories -->
+                </div>
+                <!-- Feed Posts -->
+                <div id="feed-posts-list" class="posts-list">
+                    <!-- Dynamic Posts load here -->
+                </div>
             </div>
 
-            <!-- Active Chat Conversation Window -->
-            <div id="active-chat-window" style="display:none; flex-direction:column; position:absolute; top:0; left:0; width:100%; height:100%; background:#000; z-index:250;">
-                <div class="top-header">
-                    <div style="display:flex; align-items:center; gap:10px;">
-                        <i class="fa-solid fa-arrow-left" onclick="closeChatWindow()" style="cursor:pointer;"></i>
-                        <span id="active-chat-username" style="font-weight:bold;"></span>
+            <!-- VIEW 2: SEARCH / EXPLORE -->
+            <div id="explore-container" class="app-view">
+                <div class="search-bar-wrapper">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input type="text" id="search-users-input" placeholder="Search users..." oninput="handleUserSearch(this.value)">
+                </div>
+                <div id="search-results-list" class="search-results"></div>
+            </div>
+
+            <!-- VIEW 3: CREATE POST / REEL -->
+            <div id="create-container" class="app-view">
+                <div class="create-card">
+                    <h2>Create New Post</h2>
+                    <input type="text" id="create-img-url" placeholder="Paste Image/Media URL..." class="auth-input">
+                    <textarea id="create-caption" placeholder="Write a caption..." class="auth-input" style="height: 100px; resize: none;"></textarea>
+                    <button onclick="submitNewPost()" class="auth-btn">Share Post</button>
+                </div>
+            </div>
+
+            <!-- VIEW 4: NOTIFICATIONS -->
+            <div id="notifications-container" class="app-view">
+                <h2 style="padding: 15px 16px;">Notifications</h2>
+                <div id="notifications-list" style="padding: 0 16px;"></div>
+            </div>
+
+            <!-- VIEW 5: CHAT / MESSAGES -->
+            <div id="chat-container" class="app-view">
+                <div id="chat-users-list" style="padding: 10px;"></div>
+                <div id="active-chat-box" style="display:none; flex-direction:column; height:100%;">
+                    <!-- Active Chat Header & Messages -->
+                </div>
+            </div>
+
+            <!-- VIEW 6: MY PROFILE -->
+            <div id="profile-container" class="app-view">
+                <div class="profile-header-info">
+                    <div style="position: relative; width: 85px; height: 85px;">
+                        <div id="my-profile-avatar" class="avatar" style="width: 85px; height: 85px; font-size: 32px;">U</div>
+                        <div onclick="document.getElementById('hidden-file-input').click()" class="profile-pencil-badge">
+                            <i class="fa-solid fa-pencil"></i>
+                        </div>
+                        <input type="file" id="hidden-file-input" accept="image/*" style="display: none;" onchange="handleProfilePicUpload(event)">
+                    </div>
+                    <div class="profile-stats">
+                        <div><b id="profile-posts-count">0</b><p>Posts</p></div>
+                        <div><b id="profile-followers-count">0</b><p>Followers</p></div>
+                        <div><b id="profile-following-count">0</b><p>Following</p></div>
                     </div>
                 </div>
-                <div id="chat-messages-list" class="chat-messages-box" style="flex:1; overflow-y:auto; padding:15px; display:flex; flexDirection:column; gap:10px;"></div>
-                <div class="chat-input-bar">
-                    <input type="text" id="chat-message-input" placeholder="Message...">
-                    <button onclick="sendDirectMessage()">Send</button>
+                <div class="profile-bio-box">
+                    <b id="my-profile-username">username</b>
+                    <p id="profile-bio-text">InstaUltra Creator 🚀</p>
                 </div>
-            </div>
-        </div>
-
-    <!-- 5. PROFILE VIEW (Complete with Pencil Icon & All Features) -->
-<div id="profile-container" class="app-view">
-    <div class="top-header">
-        <h2 id="profile-display-name">username</h2>
-        <div style="display: flex; gap: 15px; align-items: center; font-size: 20px;">
-            <i class="fa-solid fa-gear" onclick="alert('Settings & Privacy')" style="cursor:pointer; font-size: 18px;"></i>
-            <i class="fa-solid fa-right-from-bracket" onclick="handleLogout()" style="cursor:pointer; color:#ed4956; font-size: 18px;"></i>
-        </div>
-    </div>
-
-    <!-- Profile Header Info -->
-    <div style="padding: 15px 16px;">
-        <div style="display: flex; align-items: center; justify-content: space-between;">
-            
-            <!-- Profile Picture with Pencil/Camera Icon & File Picker -->
-            <div style="position: relative; width: 80px; height: 80px;">
-                <div id="my-profile-avatar" class="avatar" style="width: 80px; height: 80px; font-size: 30px;">U</div>
-                <div onclick="document.getElementById('hidden-file-input').click()" style="position: absolute; bottom: 0; right: 0; background: #0095f6; color: #fff; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; cursor: pointer; border: 2px solid #000;" title="Change Profile Picture">
-                    <i class="fa-solid fa-pencil"></i>
+                <div class="profile-actions">
+                    <button onclick="openEditProfileModal()">Edit Profile</button>
+                    <button onclick="handleLogout()">Logout</button>
                 </div>
-                <input type="file" id="hidden-file-input" accept="image/*" style="display: none;" onchange="handleImageCropSelection(event)">
+                <!-- Tabs -->
+                <div class="profile-tabs">
+                    <div onclick="switchProfileTab('posts')" class="active-tab"><i class="fa-solid fa-table-cells"></i></div>
+                    <div onclick="switchProfileTab('saved')"><i class="fa-solid fa-bookmark"></i></div>
+                </div>
+                <div id="my-profile-grid" class="profile-grid"></div>
             </div>
 
-            <!-- Stats Bar -->
-            <div id="profile-stats-bar" style="display: flex; gap: 20px; text-align: center; flex: 1; justify-content: space-around; margin-left: 15px;">
-                <div>
-                    <b id="profile-posts-count" style="font-size: 16px;">0</b>
-                    <p style="font-size: 12px; color: #aaa;">Posts</p>
-                </div>
-                <div id="followers-tab-btn" style="cursor: pointer;">
-                    <b id="profile-followers-count" style="font-size: 16px;">0</b>
-                    <p style="font-size: 12px; color: #aaa;">Followers</p>
-                </div>
-                <div id="following-tab-btn" style="cursor: pointer;">
-                    <b id="profile-following-count" style="font-size: 16px;">0</b>
-                    <p style="font-size: 12px; color: #aaa;">Following</p>
-                </div>
+            <!-- BOTTOM NAVIGATION BAR -->
+            <div class="bottom-nav">
+                <i class="fa-solid fa-house active" onclick="switchView('insta-feed-container')"></i>
+                <i class="fa-solid fa-magnifying-glass" onclick="switchView('explore-container')"></i>
+                <i class="fa-regular fa-square-plus" onclick="switchView('create-container')"></i>
+                <i class="fa-solid fa-clapperboard" onclick="switchView('explore-container')"></i>
+                <i class="fa-regular fa-user" onclick="switchView('profile-container')"></i>
             </div>
-        </div>
 
-        <!-- Bio Section -->
-        <div style="margin-top: 12px;">
-            <b id="my-profile-username" style="font-size: 14px;">username</b>
-            <p id="profile-bio-text" style="font-size: 13px; color: #ddd; margin-top: 2px;">Building InstaTelegram 🚀</p>
-        </div>
-
-        <!-- Profile Action Buttons -->
-        <div style="display: flex; gap: 8px; margin-top: 15px;">
-            <button onclick="editProfileBio()" style="flex: 1; background: #262626; color: #fff; border: none; padding: 7px; border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer;">Edit Profile</button>
-            <button onclick="shareProfileLink()" style="flex: 1; background: #262626; color: #fff; border: none; padding: 7px; border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer;">Share Profile</button>
         </div>
     </div>
 
-    <!-- Profile Tabs (Posts & Saved) -->
-    <div style="display: flex; border-top: 1px solid #262626; border-bottom: 1px solid #262626; margin-top: 10px;">
-        <div id="tab-posts-btn" onclick="switchProfileTab('posts')" style="flex: 1; text-align: center; padding: 10px; border-bottom: 2px solid #fff; font-size: 16px; cursor: pointer;"><i class="fa-solid fa-table-cells"></i></div>
-        <div id="tab-saved-btn" onclick="switchProfileTab('saved')" style="flex: 1; text-align: center; padding: 10px; color: #777; font-size: 16px; cursor: pointer;"><i class="fa-solid fa-bookmark"></i></div>
-    </div>
-
-    <!-- User Grid Posts Area -->
-    <div id="my-profile-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; background: #000; flex: 1;">
-        <!-- Posts will load here -->
-    </div>
-</div>
-        <!-- INSTAGRAM BOTTOM NAVIGATION BAR -->
-        <div class="bottom-nav" id="main-bottom-nav">
-            <i class="fa-solid fa-house" onclick="switchView('insta-feed-container')"></i>
-            <i class="fa-solid fa-compass" onclick="switchView('explore-container')"></i>
-            <i class="fa-regular fa-square-plus" onclick="openUploadModal()"></i>
-            <i class="fa-regular fa-comment-dots" onclick="switchView('chat-container')"></i>
-            <i class="fa-solid fa-user" onclick="switchView('profile-container')"></i>
-        </div>
-
-    </div>
-
-    <!-- Supabase CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="script.js"></script>
 </body>
 </html>
