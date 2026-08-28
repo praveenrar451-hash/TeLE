@@ -502,3 +502,168 @@ async function toggleFollowUser(targetUsername) {
         }
     }
 }
+// ==========================================
+// INSTAGRAM PROFILE & FOLLOW SYSTEM LOGIC
+// ==========================================
+
+// Profile tabs toggle (Posts vs Saved)
+function switchProfileTab(tabType) {
+    const postsBtn = document.getElementById('tab-posts-btn');
+    const savedBtn = document.getElementById('tab-saved-btn');
+    const gridArea = document.getElementById('my-profile-grid');
+
+    if (tabType === 'posts') {
+        postsBtn.style.borderBottom = '2px solid #fff';
+        postsBtn.style.color = '#fff';
+        savedBtn.style.borderBottom = 'none';
+        savedBtn.style.color = '#777';
+        loadUserProfilePosts();
+    } else {
+        savedBtn.style.borderBottom = '2px solid #fff';
+        savedBtn.style.color = '#fff';
+        postsBtn.style.borderBottom = 'none';
+        postsBtn.style.color = '#777';
+        gridArea.innerHTML = '<div style="grid-column: span 3; text-align:center; color:#777; padding:40px; font-size:13px;">No Saved Posts</div>';
+    }
+}
+
+// Profile Picture Change Function
+function changeProfilePicture() {
+    const newImgUrl = prompt("Enter profile picture image URL:");
+    if (newImgUrl) {
+        localStorage.setItem('userAvatarUrl', newImgUrl);
+        updateAvatarUI(newImgUrl);
+    }
+}
+
+function updateAvatarUI(url) {
+    const avatars = document.querySelectorAll('#my-profile-avatar, .my-avatar-display');
+    avatars.forEach(av => {
+        if (url) {
+            av.style.backgroundImage = `url('${url}')`;
+            av.textContent = '';
+        }
+    });
+}
+
+// Real Followers & Following Loader
+async function loadRealProfileStats(username) {
+    if (!supabaseClient) return;
+
+    // 1. Posts count & grid
+    const { data: posts } = await supabaseClient.from('posts').select('*').eq('username', username).order('created_at', { ascending: false });
+    document.getElementById('profile-posts-count').textContent = posts ? posts.length : 0;
+
+    // 2. Followers count (jin logo ne mujhe follow kiya hai)
+    const { count: followersCount } = await supabaseClient.from('follows').select('*', { count: 'exact', head: true }).eq('following', username);
+    document.getElementById('profile-followers-count').textContent = followersCount || 0;
+
+    // 3. Following count (jinko maine follow kiya hai)
+    const { count: followingCount } = await supabaseClient.from('follows').select('*', { count: 'exact', head: true }).eq('follower', username);
+    document.getElementById('profile-following-count').textContent = followingCount || 0;
+
+    // Click events for Followers & Following lists popup
+    document.getElementById('followers-tab-btn').onclick = () => openFollowersModal('followers', username);
+    document.getElementById('following-tab-btn').onclick = () => openFollowersModal('following', username);
+}
+
+// Followers/Following List Modal Popup
+async function openFollowersModal(type, username) {
+    let modal = document.getElementById('follow-list-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'follow-list-modal';
+        modal.style.cssText = "display:flex; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:400; justify-content:center; align-items:center; padding:20px;";
+        document.body.appendChild(modal);
+    }
+
+    modal.innerHTML = `
+        <div style="background:#121212; width:100%; max-width:350px; border-radius:12px; border:1px solid #262626; overflow:hidden; display:flex; flex-direction:column; max-height:80vh;">
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 16px; border-bottom:1px solid #262626;">
+                <b style="text-transform: capitalize; font-size:14px;">${type}</b>
+                <i class="fa-solid fa-xmark" style="cursor:pointer; font-size:18px;" onclick="document.getElementById('follow-list-modal').style.display='none'"></i>
+            </div>
+            <div id="follow-modal-users" style="padding:10px; overflow-y:auto; flex:1;">
+                <div style="text-align:center; color:#777; padding:20px;">Loading...</div>
+            </div>
+        </div>
+    `;
+    modal.style.display = 'flex';
+
+    let usersList = [];
+    if (supabaseClient) {
+        if (type === 'followers') {
+            const { data } = await supabaseClient.from('follows').select('follower').eq('following', username);
+            usersList = (data || []).map(item => item.follower);
+        } else {
+            const { data } = await supabaseClient.from('follows').select('following').eq('follower', username);
+            usersList = (data || []).map(item => item.following);
+        }
+    }
+
+    const container = document.getElementById('follow-modal-users');
+    container.innerHTML = '';
+    
+    if (usersList.length === 0) {
+        container.innerHTML = `<div style="text-align:center; color:#777; padding:30px; font-size:13px;">No ${type} yet</div>`;
+        return;
+    }
+
+    usersList.forEach(uName => {
+        const row = document.createElement('div');
+        row.className = 'chat-user-row';
+        row.innerHTML = `<div class="avatar">${uName.charAt(0).toUpperCase()}</div><b>${uName}</b>`;
+        row.onclick = () => {
+            modal.style.display = 'none';
+            openUserProfile(uName);
+        };
+        container.appendChild(row);
+    });
+}
+
+// Load user's own posts grid
+async function loadUserProfilePosts() {
+    const username = localStorage.getItem('currentUsername');
+    const gridArea = document.getElementById('my-profile-grid');
+    if (!gridArea) return;
+
+    gridArea.innerHTML = '<div style="grid-column: span 3; text-align:center; color:#777; padding:20px;">Loading...</div>';
+
+    let posts = [];
+    if (supabaseClient) {
+        const { data } = await supabaseClient.from('posts').select('*').eq('username', username).order('created_at', { ascending: false });
+        posts = data || [];
+    }
+
+    gridArea.innerHTML = '';
+    if (posts.length === 0) {
+        gridArea.innerHTML = '<div style="grid-column: span 3; text-align:center; color:#777; padding:40px; font-size:13px;">No Posts Yet</div>';
+        return;
+    }
+
+    posts.forEach(post => {
+        const img = document.createElement('img');
+        img.src = post.image_url;
+        img.style.cssText = "width:100%; aspect-ratio:1/1; object-fit:cover; background:#111;";
+        gridArea.appendChild(img);
+    });
+}
+
+// Hook into switchView to refresh stats when profile opens
+const existingSwitchView = window.switchView;
+window.switchView = function(viewId) {
+    if (typeof existingSwitchView === 'function') existingSwitchView(viewId);
+    if (viewId === 'profile-container') {
+        const username = localStorage.getItem('currentUsername');
+        loadRealProfileStats(username);
+        loadUserProfilePosts();
+        const savedAvatar = localStorage.getItem('userAvatarUrl');
+        if (savedAvatar) updateAvatarUI(savedAvatar);
+    }
+};
+
+// Share profile link function
+function shareProfileLink() {
+    navigator.clipboard?.writeText(window.location.href);
+    alert("Profile link copied to clipboard!");
+}
