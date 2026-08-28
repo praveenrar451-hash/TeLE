@@ -1763,3 +1763,92 @@ window.addEventListener('DOMContentLoaded', () => {
         }
     }, 1500);
 });
+// ==========================================
+// DIRECT CHAT FIX & INSTANT RENDER PATCH
+// ==========================================
+console.log("Direct Chat Fix Loaded!");
+
+async function loadMyChatUsersDirectly() {
+    // Aapke app mein jo bhi chat list ka container ho sakta hai, sabko yahan target kiya gaya hai
+    const containers = [
+        document.getElementById('chat-list-container'),
+        document.getElementById('chat-users-list'),
+        document.querySelector('.chat-list'),
+        document.querySelector('#chat-container .users-list')
+    ];
+
+    const targetContainer = containers.find(c => c !== null);
+    if (!targetContainer) return;
+
+    targetContainer.innerHTML = '<div style="color:#777; text-align:center; padding:20px; font-size:12px;">Loading chat users...</div>';
+
+    try {
+        const myName = localStorage.getItem('currentUsername');
+        const { data: users, error } = await supabaseClient.from('users').select('username, avatar_url');
+        
+        if (error) throw error;
+
+        if (!users || users.length === 0) {
+            targetContainer.innerHTML = '<div style="color:#777; text-align:center; padding:20px; font-size:12px;">No users found.</div>';
+            return;
+        }
+
+        targetContainer.innerHTML = '';
+
+        users.forEach(user => {
+            if (user.username === myName) return; // Khud ko list me nahi dikhana
+
+            const userDiv = document.createElement('div');
+            userDiv.style.cssText = "display:flex; align-items:center; gap:12px; padding:12px 15px; cursor:pointer; border-bottom:1px solid #1a1a1a; transition:background 0.2s;";
+            userDiv.onmouseover = () => userDiv.style.background = '#111';
+            userDiv.onmouseout = () => userDiv.style.background = 'transparent';
+
+            const avatarStyle = user.avatar_url 
+                ? `background-image:url(${user.avatar_url}); background-size:cover; background-position:center;` 
+                : 'background:#444;';
+
+            userDiv.innerHTML = `
+                <div style="width:42px; height:42px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:15px; color:#fff; ${avatarStyle}">
+                    ${!user.avatar_url ? user.username.charAt(0).toUpperCase() : ''}
+                </div>
+                <div style="flex:1;">
+                    <div style="font-weight:600; font-size:14px; color:#fff;">${user.username}</div>
+                    <div style="font-size:12px; color:#888; margin-top:2px;">Tap to open chat</div>
+                </div>
+            `;
+
+            // Click karne par chat window khulne ka function
+            userDiv.onclick = () => {
+                if (typeof openChatWindow === 'function') {
+                    openChatWindow(user.username);
+                } else if (typeof startChat === 'function') {
+                    startChat(user.username);
+                } else {
+                    console.log("Opening chat with:", user.username);
+                }
+            };
+
+            targetContainer.appendChild(userDiv);
+        });
+
+    } catch (err) {
+        console.error("Direct chat load error:", err);
+        targetContainer.innerHTML = '<div style="color:#777; text-align:center; padding:20px; font-size:12px;">Failed to load users.</div>';
+    }
+}
+
+// Jab bhi chat view par click ho ya page load ho, yeh turant chal jaye
+window.addEventListener('DOMContentLoaded', () => {
+    setTimeout(loadMyChatUsersDirectly, 1000);
+});
+
+// Agar view switch hota hai aur chat par aate hain, toh load kar do
+const originalViewSwitcher = window.switchView;
+if (originalViewSwitcher) {
+    window.switchView = function(viewId, saveState = true) {
+        originalViewSwitcher(viewId, saveState);
+        if (viewId === 'chat-container' || viewId === 'telegram-chat-section' || viewId === 'messages-page') {
+            loadMyChatUsersDirectly();
+        }
+    };
+}
