@@ -1,5 +1,5 @@
 // ==========================================
-// INSTA-TELE APP SCRIPT.JS (FINAL & FULLY FIXED)
+// INSTA-TELE APP SCRIPT.JS (CHAT & UPLOAD FIXED)
 // ==========================================
 
 const SUPABASE_URL = 'https://ydjbojsqeujahgqinfmk.supabase.co';
@@ -28,7 +28,7 @@ const userProfilePosts = document.getElementById('user-profile-posts');
 const userProfileReels = document.getElementById('user-profile-reels');
 
 let currentActiveView = 'login-container';
-let activeChatSubscription = null; // Real-time listener reference for chat
+let activeChatSubscription = null;
 
 function switchView(viewId) {
     document.querySelectorAll('.app-view').forEach(view => {
@@ -438,7 +438,6 @@ async function openProfilePage(username, isOwnProfile) {
     if (profileUsernameTitle) profileUsernameTitle.textContent = username;
     if (profileAvatar) profileAvatar.textContent = username.charAt(0).toUpperCase();
 
-    // Check if user has a custom avatar image saved in db
     const { data: userData } = await supabaseClient.from('users').select('avatar_url').eq('username', username).single();
     if (userData && userData.avatar_url && profileAvatar) {
         profileAvatar.style.backgroundImage = `url(${userData.avatar_url})`;
@@ -458,7 +457,6 @@ async function openProfilePage(username, isOwnProfile) {
     if (followersCountElem) followersCountElem.textContent = followersCount || 0;
     if (followingCountElem) followingCountElem.textContent = followingCount || 0;
 
-    // TAP ON FOLLOWERS/FOLLOWING TO VIEW CLEAR LIST
     const followersBoxElement = followersCountElem ? followersCountElem.parentElement : null;
     const followingBoxElement = followingCountElem ? followingCountElem.parentElement : null;
 
@@ -486,11 +484,11 @@ async function openProfilePage(username, isOwnProfile) {
                 if (isFollowing) {
                     await supabaseClient.from('follows').delete().eq('follower', myName).eq('following', username);
                     profileActionButton.textContent = "Follow";
-                    openProfilePage(username, false); // Refresh counts
+                    openProfilePage(username, false);
                 } else {
                     await supabaseClient.from('follows').insert([{ follower: myName, following: username }]);
                     profileActionButton.textContent = "Unfollow";
-                    openProfilePage(username, false); // Refresh counts
+                    openProfilePage(username, false);
                 }
             };
         }
@@ -630,7 +628,7 @@ function openEditProfileModal(currentUsername) {
 
         const reader = new FileReader();
         reader.onload = (uploadEvent) => {
-            hiddenUrlInput.value = uploadEvent.target.result; // Base64 Data URL for instant gallery preview/storage
+            hiddenUrlInput.value = uploadEvent.target.result;
             statusText.textContent = "Image ready to save!";
             statusText.style.color = '#2ecc71';
         };
@@ -650,7 +648,6 @@ function openEditProfileModal(currentUsername) {
             return;
         }
 
-        // If no new gallery image selected, check if old one can be retained
         if (!newAvatarUrl) {
             const { data: existingUser } = await supabaseClient.from('users').select('avatar_url').eq('username', currentUsername).single();
             if (existingUser) newAvatarUrl = existingUser.avatar_url || '';
@@ -666,7 +663,6 @@ function openEditProfileModal(currentUsername) {
             return;
         }
 
-        // Update username references across other tables
         await supabaseClient.from('posts').update({ username: newUsernameInput }).eq('username', currentUsername);
         await supabaseClient.from('reels').update({ username: newUsernameInput }).eq('username', currentUsername);
         await supabaseClient.from('likes').update({ username: newUsernameInput }).eq('username', currentUsername);
@@ -874,13 +870,12 @@ async function openChatWindow(receiverName) {
 
     const myName = localStorage.getItem('currentUsername');
 
-    // Close previous active subscription securely
     if (activeChatSubscription) {
         supabaseClient.removeChannel(activeChatSubscription);
         activeChatSubscription = null;
     }
 
-    // Fetch existing messages between current user and receiver
+    // Fetch existing messages
     const { data: messages, error } = await supabaseClient
         .from('messages')
         .select('*')
@@ -896,9 +891,9 @@ async function openChatWindow(receiverName) {
         }
     }
 
-    // FIXED LIVE REALTIME CHAT SUBSCRIPTION (Bina refresh kiye messages aayenge)
+    // Real-time listener for incoming messages from other user
     activeChatSubscription = supabaseClient
-        .channel('room_messages_live')
+        .channel(`chat_${Math.random()}`)
         .on('postgres_changes', { 
             event: 'INSERT', 
             schema: 'public', 
@@ -908,15 +903,17 @@ async function openChatWindow(receiverName) {
             if ((newMsg.sender === myName && newMsg.receiver === receiverName) || 
                 (newMsg.sender === receiverName && newMsg.receiver === myName)) {
                 
-                if (messagesArea.innerHTML.includes('No messages yet')) {
-                    messagesArea.innerHTML = '';
+                // Avoid duplicating our own message if already appended optimistically
+                if (newMsg.sender !== myName) {
+                    if (messagesArea.innerHTML.includes('No messages yet')) {
+                        messagesArea.innerHTML = '';
+                    }
+                    appendChatMessage(newMsg);
                 }
-                appendChatMessage(newMsg);
             }
         })
         .subscribe();
 
-    // Back Button Handler
     if (backBtn) {
         backBtn.onclick = () => {
             chatWindowScreen.classList.remove('active');
@@ -927,7 +924,7 @@ async function openChatWindow(receiverName) {
         };
     }
 
-    // Send Message Handler
+    // FIXED SEND MESSAGE HANDLER (Optimistic Update taaki turant screen par dikhe)
     const handleSendMessage = async () => {
         if (!chatInput) return;
         const text = chatInput.value.trim();
@@ -935,13 +932,20 @@ async function openChatWindow(receiverName) {
 
         chatInput.value = '';
 
+        // Immediately show message on screen locally
+        if (messagesArea.innerHTML.includes('No messages yet')) {
+            messagesArea.innerHTML = '';
+        }
+        appendChatMessage({ sender: myName, receiver: receiverName, message: text });
+
+        // Save to Database
         const { error: sendError } = await supabaseClient
             .from('messages')
             .insert([{ sender: myName, receiver: receiverName, message: text }]);
 
         if (sendError) {
             console.error("Failed to send message", sendError);
-            alert("Failed to send message.");
+            alert("Failed to send message to database.");
         }
     };
 
@@ -972,4 +976,4 @@ function appendChatMessage(msg) {
 
     messagesArea.appendChild(msgBubble);
     messagesArea.scrollTop = messagesArea.scrollHeight;
-                                                                      }
+                    }
