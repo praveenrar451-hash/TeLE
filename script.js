@@ -1660,63 +1660,74 @@ window.addEventListener('DOMContentLoaded', () => {
     }, 1500);
 });
 // ==========================================
-// POST UPLOAD FIXER & ERROR HANDLER
+// UNIVERSAL POST BUTTON INTERCEPTOR
 // ==========================================
-console.log("Post Upload Fixer Loaded!");
+console.log("Universal Post Interceptor Loaded!");
 
-window.addEventListener('DOMContentLoaded', () => {
-    setTimeout(() => {
-        // Post upload form ya button ko dhoondho
-        const postForm = document.querySelector('#post-form') || document.querySelector('.post-upload-form') || document.getElementById('create-post-form');
-        const submitPostBtn = document.getElementById('submit-post-btn') || document.querySelector('.submit-post') || document.querySelector('button[type="submit"]');
-
-        // Agar koi submit button ya form hai toh uske event ko intercept karte hain
-        const postInputBox = document.getElementById('post-caption-input') || document.querySelector('textarea[name="caption"]') || document.querySelector('.post-text-input');
-        const imageInput = document.getElementById('post-image-file') || document.querySelector('input[type="file"]');
-
-        console.log("Post elements attached safely.");
-    }, 1000);
-});
-
-// Global safe post creation function jo database error ko handle karega
-async function createNewPostSafely(caption, imageUrl) {
-    try {
-        if (!window.supabaseClient) {
-            alert("Supabase client not found!");
-            return;
-        }
-
-        const username = localStorage.getItem('currentUsername') || 'Anonymous';
+document.addEventListener('click', async (e) => {
+    const target = e.target;
+    
+    // Check karein ki click kiya gaya button post/share/upload wala hai ya nahi
+    if (target.tagName === 'BUTTON' || target.type === 'submit' || target.classList.contains('post-btn') || target.id.includes('post') || target.id.includes('upload')) {
+        const btnText = (target.textContent || '').trim().toLowerCase();
         
-        // Supabase mein 'posts' table mein data insert karne ki koshish
-        const { data, error } = await window.supabaseClient
-            .from('posts')
-            .insert([
-                { 
-                    username: username, 
-                    caption: caption || '', 
-                    image_url: imageUrl || '',
-                    created_at: new Date()
+        if (btnText.includes('post') || btnText.includes('share') || btnText.includes('upload') || btnText.includes('publish')) {
+            // Check karein ki kya ye wahi button hai
+            const captionInput = document.querySelector('input[type="text"], textarea') || document.getElementById('caption') || document.querySelector('.caption-input');
+            const imageInput = document.querySelector('input[type="url"], input[type="text"]') || document.getElementById('image-url');
+
+            // Agar caption ya image field mojood hai, toh iska matlab yeh post creation form ho sakta hai
+            const myName = localStorage.getItem('currentUsername');
+            if (!myName) return;
+
+            // Inputs se values nikalne ki koshish
+            let captionText = "";
+            let imageUrlText = "";
+
+            document.querySelectorAll('input, textarea').forEach(input => {
+                const val = input.value ? input.value.trim() : '';
+                if (!val) return;
+                if (val.startsWith('http') || val.includes('imgur') || val.includes('supabase') || val.includes('.jpg') || val.includes('.png')) {
+                    imageUrlText = val;
+                } else if (input !== input && val.length > 0) {
+                    captionText = val;
                 }
-            ]);
+            });
 
-        if (error) {
-            console.error("Supabase Post Insert Error:", error);
-            alert("Post upload failed: " + error.message);
-            return false;
-        }
+            // Agar image URL mil gaya hai toh khud insert karwa do
+            if (imageUrlText && window.supabaseClient) {
+                e.preventDefault(); // Purane broken action ko roko
+                e.stopPropagation();
 
-        console.log("Post uploaded successfully!");
-        // Feed ko refresh kar do taaki nayi post turant dikhe
-        if (typeof fetchFeedPosts === 'function') {
-            fetchFeedPosts();
-        } else {
-            location.reload(); // Fallback agar function na mile
+                target.textContent = "Uploading...";
+                target.disabled = true;
+
+                try {
+                    const { error } = await window.supabaseClient.from('posts').insert([
+                        { username: myName, image_url: imageUrlText, caption: captionText || '' }
+                    ]);
+
+                    if (error) throw error;
+
+                    alert("Post successfully upload ho gayi!");
+                    
+                    // Fields clear kar do
+                    document.querySelectorAll('input, textarea').forEach(i => i.value = '');
+
+                    // Home feed par wapas bhej do ya feed refresh karo
+                    if (typeof fetchFeedPosts === 'function') {
+                        fetchFeedPosts();
+                    } else {
+                        location.reload();
+                    }
+                } catch (err) {
+                    console.error("Manual insert error:", err);
+                    alert("Upload fail ho gaya: " + err.message);
+                } finally {
+                    target.textContent = "Post";
+                    target.disabled = false;
+                }
+            }
         }
-        return true;
-    } catch (err) {
-        console.error("Catch error during post creation:", err);
-        alert("Something went wrong while posting.");
-        return false;
-    }
-}
+    }, true); // Capture phase me intercept karega
+});
