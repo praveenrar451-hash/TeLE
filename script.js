@@ -136,6 +136,7 @@ window.switchView = function(viewId) {
     }
     if (viewId === 'insta-feed-container') loadFeedPosts();
     if (viewId === 'explore-container') handleUserSearch('');
+    if (viewId === 'chat-container') openChatList();
     if (viewId === 'reels-container') loadReelsFeed();
 };
 
@@ -371,9 +372,10 @@ async function loadReelsFeed() {
     });
 }
 
+// HOME / EXPLORE SCREEN SEARCH (Opens User Profile ID)
 async function handleUserSearch(query) {
     const resultsList = document.getElementById('search-results-list');
-    if (!supabaseClient) return;
+    if (!supabaseClient || !resultsList) return;
 
     let queryBuilder = supabaseClient.from('users').select('username, bio, avatar_url');
     if (query.trim()) {
@@ -388,7 +390,7 @@ async function handleUserSearch(query) {
             const avatarStyle = user.avatar_url ? `background-image: url('${user.avatar_url}');` : '';
             const row = document.createElement('div');
             row.style.cssText = "display:flex; align-items:center; padding:10px 0; gap:12px; cursor:pointer; border-bottom:1px solid #1a1a1a;";
-            row.onclick = () => viewUserProfile(user.username);
+            row.onclick = () => viewUserProfile(user.username); // Opens Profile ID
             row.innerHTML = `
                 <div class="avatar" style="width:44px; height:44px; font-size:16px; ${avatarStyle}">${user.avatar_url ? '' : user.username.charAt(0).toUpperCase()}</div>
                 <div>
@@ -577,14 +579,38 @@ function closeFollowModal() {
     if (modal) modal.style.display = 'none';
 }
 
+// CHAT LIST WITH BUILT-IN SEARCH (Tapping opens Chat Room directly)
 async function openChatList() {
     switchView('chat-container');
+    const chatContainer = document.getElementById('chat-container');
+    
+    // Ensure chat container structure includes search bar
+    chatContainer.innerHTML = `
+        <div class="top-bar">
+            <i class="fa-solid fa-arrow-left" style="cursor:pointer;" onclick="switchView('insta-feed-container')"></i>
+            <b>Messages</b>
+            <div></div>
+        </div>
+        <div style="padding: 10px 16px; border-bottom: 1px solid #262626;">
+            <input type="text" id="chat-search-input" placeholder="Search messages or users..." oninput="filterChatUsers(this.value)" style="width:100%; background:#262626; border:none; padding:8px 12px; border-radius:8px; color:#fff; outline:none; font-size:13px;">
+        </div>
+        <div id="chat-users-list" style="flex:1; overflow-y:auto;"></div>
+    `;
+
+    await renderChatUsersList('');
+}
+
+async function renderChatUsersList(filterQuery) {
     const chatUsersList = document.getElementById('chat-users-list');
     const currentUser = localStorage.getItem('currentUsername');
-    
-    if (!supabaseClient) return;
+    if (!supabaseClient || !chatUsersList) return;
 
-    const { data } = await supabaseClient.from('users').select('username, bio, avatar_url, is_online').neq('username', currentUser);
+    let queryBuilder = supabaseClient.from('users').select('username, bio, avatar_url, is_online').neq('username', currentUser);
+    if (filterQuery.trim()) {
+        queryBuilder = queryBuilder.ilike('username', `%${filterQuery}%`);
+    }
+
+    const { data } = await queryBuilder;
     chatUsersList.innerHTML = '';
 
     if (data && data.length > 0) {
@@ -593,7 +619,7 @@ async function openChatList() {
             const onlineDot = user.is_online ? `<span style="width:8px; height:8px; background:#31a24c; border-radius:50%; display:inline-block; margin-left:6px;"></span>` : '';
             const row = document.createElement('div');
             row.style.cssText = "display:flex; align-items:center; padding:10px 16px; gap:12px; cursor:pointer; justify-content:space-between;";
-            row.onclick = () => openChatWith(user.username);
+            row.onclick = () => openChatWith(user.username); // Opens Chat Directly
             row.innerHTML = `
                 <div style="display:flex; align-items:center; gap:12px;">
                     <div class="avatar" style="width:44px; height:44px; font-size:16px; ${avatarStyle}">${user.avatar_url ? '' : user.username.charAt(0).toUpperCase()}</div>
@@ -607,8 +633,12 @@ async function openChatList() {
             chatUsersList.appendChild(row);
         });
     } else {
-        chatUsersList.innerHTML = `<div style="text-align:center; padding:40px; color:#8e8e8e; font-size:13px;">No other users found.</div>`;
+        chatUsersList.innerHTML = `<div style="text-align:center; padding:40px; color:#8e8e8e; font-size:13px;">No users found.</div>`;
     }
+}
+
+function filterChatUsers(query) {
+    renderChatUsersList(query);
 }
 
 let activeChatUser = '';
@@ -640,6 +670,7 @@ async function openChatWith(username) {
 async function loadChatMessages() {
     const msgContainer = document.getElementById('chatroom-messages');
     const currentUser = localStorage.getItem('currentUsername');
+    if (!msgContainer) return;
     msgContainer.innerHTML = '';
 
     if (!supabaseClient) return;
@@ -662,6 +693,7 @@ async function loadChatMessages() {
 
 function appendMessageBubble(msg, currentUser) {
     const msgContainer = document.getElementById('chatroom-messages');
+    if (!msgContainer) return;
     const placeholder = msgContainer.querySelector('div[style*="text-align:center"]');
     if (placeholder) placeholder.remove();
 
@@ -685,6 +717,7 @@ function appendMessageBubble(msg, currentUser) {
     msgContainer.scrollTop = msgContainer.scrollHeight;
 }
 
+// REAL-TIME CHAT SYNC FIX
 function setupRealtimeChat() {
     if (!supabaseClient) return;
     if (activeChatSubscription) {
@@ -723,9 +756,28 @@ async function sendChatMessage() {
     if (!text || !supabaseClient) return;
 
     inputEl.value = '';
-    await supabaseClient.from('messages').insert([
+    await supabaseClient.from('messages'].insert([
         { sender: currentUser, receiver: activeChatUser, message: text, type: 'text', is_seen: false }
     ]);
+}
+
+// Instant message send fix wrapper
+async function sendChatMessage() {
+    const inputEl = document.getElementById('chatroom-input');
+    if (!inputEl) return;
+    const text = inputEl.value.trim();
+    const currentUser = localStorage.getItem('currentUsername');
+
+    if (!text || !supabaseClient) return;
+
+    inputEl.value = '';
+    const { data, error } = await supabaseClient.from('messages').insert([
+        { sender: currentUser, receiver: activeChatUser, message: text, type: 'text', is_seen: false }
+    ]).select();
+
+    if (!error && data && data.length > 0) {
+        appendMessageBubble(data[0], currentUser);
+    }
 }
 
 async function sendChatPhoto(event) {
@@ -735,9 +787,13 @@ async function sendChatPhoto(event) {
     reader.onload = async function(e) {
         const imgSrc = e.target.result;
         const currentUser = localStorage.getItem('currentUsername');
-        await supabaseClient.from('messages').insert([
+        const { data, error } = await supabaseClient.from('messages').insert([
             { sender: currentUser, receiver: activeChatUser, message: imgSrc, type: 'image', is_seen: false }
-        ]);
+        ]).select();
+
+        if (!error && data && data.length > 0) {
+            appendMessageBubble(data[0], currentUser);
+        }
     };
     reader.readAsDataURL(file);
 }
@@ -766,9 +822,13 @@ async function recordVoiceNote() {
                     const base64Audio = reader.result;
                     const currentUser = localStorage.getItem('currentUsername');
                     if (supabaseClient) {
-                        await supabaseClient.from('messages').insert([
+                        const { data, error } = await supabaseClient.from('messages').insert([
                             { sender: currentUser, receiver: activeChatUser, message: base64Audio, type: 'audio', is_seen: false }
-                        ]);
+                        ]).select();
+
+                        if (!error && data && data.length > 0) {
+                            appendMessageBubble(data[0], currentUser);
+                        }
                     }
                 };
             };
@@ -784,12 +844,57 @@ async function recordVoiceNote() {
     }
 }
 
+// INSTAGRAM-STYLE CALLING UI OVERLAY
 function startAudioCall() {
-    alert(`Calling ${activeChatUser} (Audio)...`);
+    showCallUI('audio', activeChatUser);
 }
 
 function startVideoCall() {
-    alert(`Calling ${activeChatUser} (Video)...`);
+    showCallUI('video', activeChatUser);
+}
+
+function showCallUI(type, targetUser) {
+    let callOverlay = document.getElementById('instagram-call-overlay');
+    if (!callOverlay) {
+        callOverlay = document.createElement('div');
+        callOverlay.id = 'instagram-call-overlay';
+        callOverlay.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:#1a1a1a; z-index:9999; display:flex; flex-direction:column; justify-content:space-between; align-items:center; padding:50px 20px; color:#fff;";
+        document.body.appendChild(callOverlay);
+    }
+
+    callOverlay.innerHTML = `
+        <div style="display:flex; flex-direction:column; align-items:center; gap:15px; margin-top:40px;">
+            <div class="avatar" style="width:90px; height:90px; font-size:35px; background-color:#363636;">${targetUser.charAt(0).toUpperCase()}</div>
+            <h2 style="font-size:22px; font-weight:500;">${targetUser}</h2>
+            <p style="font-size:14px; color:#a8a8a8;" id="call-status-text">Ringing...</p>
+        </div>
+        <div style="display:flex; gap:30px; margin-bottom:50px; align-items:center;">
+            <button onclick="toggleCallMute(this)" style="width:55px; height:55px; border-radius:50%; background:#262626; border:none; color:#fff; font-size:20px; cursor:pointer;"><i class="fa-solid fa-microphone"></i></button>
+            <button onclick="endCallScreen()" style="width:65px; height:65px; border-radius:50%; background:#ed4956; border:none; color:#fff; font-size:24px; cursor:pointer;"><i class="fa-solid fa-phone-slash"></i></button>
+            ${type === 'video' ? `<button onclick="toggleCamera(this)" style="width:55px; height:55px; border-radius:50%; background:#262626; border:none; color:#fff; font-size:20px; cursor:pointer;"><i class="fa-solid fa-video"></i></button>` : ''}
+        </div>
+    `;
+    callOverlay.style.display = 'flex';
+}
+
+function endCallScreen() {
+    const callOverlay = document.getElementById('instagram-call-overlay');
+    if (callOverlay) {
+        callOverlay.style.display = 'none';
+    }
+}
+
+function toggleCallMute(btn) {
+    const isMuted = btn.style.background === 'rgb(54, 54, 54)';
+    // Toggle style state
+    btn.style.background = isMuted ? '#fff' : '#262626';
+    btn.style.color = isMuted ? '#000' : '#fff';
+}
+
+function toggleCamera(btn) {
+    const isOff = btn.style.background === 'rgb(54, 54, 54)';
+    btn.style.background = isOff ? '#fff' : '#262626';
+    btn.style.color = isOff ? '#000' : '#fff';
 }
 
 function openChatWithUser() {
