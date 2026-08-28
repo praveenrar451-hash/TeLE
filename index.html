@@ -3,36 +3,222 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Realtime Chat App</title>
+    <title>InstaTele Mixer App</title>
+    <!-- PWA Manifest Link Added -->
+    <link rel="manifest" href="manifest.json">
     <link rel="stylesheet" href="style.css">
-    <!-- Supabase CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
-    <!-- Login Screen -->
-    <div id="login-container" class="card">
-        <h2>Welcome to Chat</h2>
-        <input type="email" id="email" placeholder="Enter your email">
-        <input type="password" id="password" placeholder="Enter password">
-        <button id="login-btn">Login / Sign Up</button>
+    <!-- ================= LOGIN VIEW ================= -->
+    <div id="login-container" class="app-view active">
+        <div class="login-box">
+            <h2>InstaTele</h2>
+            <p class="login-subtitle">Enter your name and password</p>
+            <input type="text" id="login-username-input" placeholder="Your Username">
+            <input type="password" id="login-password-input" placeholder="Password">
+            <button id="login-submit-btn">Log In</button>
+            <p id="login-error-msg" class="error-text"></p>
+        </div>
     </div>
 
-    <!-- Chat Screen -->
-    <div id="chat-container" class="card hidden">
-        <div class="chat-header">
-            <h3>Group Chat</h3>
-            <span id="user-email-display"></span>
-            <button id="logout-btn">Logout</button>
+
+    <!-- ================= INSTAGRAM UI (Home View) ================= -->
+    <!-- Insta Main ke andar sabse upar -->
+<div id="stories-bar" style="display: flex; gap: 12px; padding: 10px; overflow-x: auto; background: #000; border-bottom: 1px solid #262626; scrollbar-width: none;">
+    <!-- Stories dynamic yahan aayengi -->
+</div>
+
+<!-- Naya Explore View (Search tab ke liye) -->
+<div id="explore-container" class="app-view">
+    <header class="insta-header">
+        <h2>Explore</h2>
+    </header>
+    <div id="explore-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; padding: 2px;"></div>
+</div>
+    
+    <div id="insta-container" class="app-view">
+        <header class="insta-header">
+            <h2>InstaTele</h2>
+            <div class="header-icons">
+                <button id="switch-to-tele" class="infinity-btn" title="Open Telegram Chat">♾️</button>
+                <button id="logout-btn" class="logout-icon-btn" title="Log Out"><i class="fa-solid fa-right-from-bracket"></i></button>
+            </div>
+        </header>
+
+        <main class="insta-main">
+            <div class="search-box-section">
+                <input type="text" id="insta-search-input" placeholder="Search posts or users...">
+            </div>
+
+            <div id="search-results-box" style="display: none;"></div>
+
+            <div id="posts-feed" class="posts-feed">
+                <!-- Posts will be injected here -->
+            </div>
+        </main>
+
+        <nav class="insta-nav">
+            <i class="fa-solid fa-house active" id="nav-home-btn" title="Home"></i>
+            <i class="fa-solid fa-magnifying-glass" id="nav-search-btn" title="Search"></i>
+            <i class="fa-solid fa-square-plus" id="nav-upload-btn" title="Upload"></i>
+            <i class="fa-solid fa-clapperboard" id="nav-reels-btn" title="Reels"></i>
+            <i class="fa-solid fa-user" id="nav-profile-btn" title="Profile"></i>
+        </nav>
+    </div>
+
+
+    <!-- ================= REELS VIEW ================= -->
+<div id="reels-container" class="app-view" style="background:#000; color:#fff; height:100vh; display:flex; flex-direction:column;">
+    <header class="insta-header" style="display:flex; justify-content:space-between; align-items:center; padding:10px 15px; border-bottom:1px solid #262626;">
+        <button id="back-from-reels" class="back-btn" style="background:transparent; border:none; color:#fff; font-size:18px; cursor:pointer;"><i class="fa-solid fa-arrow-left"></i></button>
+        <h2 style="font-size:16px; margin:0;">Reels</h2>
+        <div class="header-icons">
+            <button id="reels-camera-btn" style="background:transparent; border:none; color:#fff; font-size:20px; cursor:pointer;" title="Upload Reel">
+                <i class="fa-solid fa-camera"></i>
+            </button>
+            <input type="file" id="reel-file-input" accept="video/*" style="display: none;">
         </div>
-        <div id="messages-box"></div>
+    </header>
+    
+    <!-- Reels Upload Modal (Caption dalne ke liye) -->
+    <div id="reel-upload-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:10000; justify-content:center; align-items:center;">
+        <div style="background:#121212; width:90%; max-width:350px; padding:20px; border-radius:12px; border:1px solid #262626; display:flex; flex-direction:column; gap:12px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <h3 style="margin:0; font-size:16px; color:#fff;">New Reel</h3>
+                <button id="close-reel-modal" style="background:transparent; border:none; color:#fff; font-size:16px; cursor:pointer;"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div id="reel-preview-container" style="width:100%; height:200px; background:#000; border-radius:8px; display:flex; justify-content:center; align-items:center; overflow:hidden;">
+                <video id="reel-preview-video" style="max-width:100%; max-height:100%;" controls></video>
+            </div>
+            <textarea id="reel-caption-input" placeholder="Write a caption for your reel..." style="width:100%; height:80px; background:#1a1a1a; border:1px solid #333; color:#fff; padding:10px; border-radius:8px; resize:none; font-size:13px;"></textarea>
+            <button id="submit-reel-btn" style="background:#0095f6; color:#fff; border:none; padding:10px; border-radius:8px; font-weight:bold; cursor:pointer;">Share Reel</button>
+        </div>
+    </div>
+
+    <!-- Reels Feed Area (Jaha reels dikhengi) -->
+    <main id="reels-feed" style="flex:1; overflow-y:scroll; scroll-snap-type:y mandatory; display:flex; flex-direction:column; align-items:center;">
+        <p style="color:#777; margin-top:50px;">Loading reels...</p>
+    </main>
+</div>
+
+
+
+    <!-- ================= PROFILE VIEW ================= -->
+    <div id="profile-container" class="app-view">
+        <header class="insta-header">
+            <button id="back-from-profile" class="back-btn"><i class="fa-solid fa-arrow-left"></i></button>
+            <h2 id="profile-username-title">Profile</h2>
+        </header>
+        <main class="insta-main" style="padding: 15px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px;">
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <div style="width: 65px; height: 65px; background: #333; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 26px; color: #fff;" id="profile-initial">P</div>
+                    <div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <h3 id="profile-name-display" style="color: #fff; margin: 0;">User</h3>
+                            <!-- PENCIL EDIT BUTTON -->
+                            <button id="toggle-edit-profile-btn" style="background: transparent; border: none; color: #0095f6; font-size: 16px; cursor: pointer; display: none;" title="Edit Profile"><i class="fa-solid fa-pen"></i></button>
+                        </div>
+                        <div style="display: flex; gap: 15px; margin-top: 5px; font-size: 13px; color: #aaa;">
+                            <span><b id="profile-posts-count" style="color:#fff;">0</b> posts</span>
+                            <span id="profile-followers-box"><b id="profile-followers-count" style="color:#fff;">0</b> followers</span>
+                            <span id="profile-following-box"><b id="profile-following-count" style="color:#fff;">0</b> following</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <button id="profile-follow-btn" style="width: 100%; padding: 8px; background: #0095f6; border: none; color: #fff; font-weight: bold; border-radius: 5px; cursor: pointer; margin-bottom: 15px; display: none;">Follow</button>
+
+            <!-- EDIT PROFILE SECTION (Hidden by default, opens on Pencil click) -->
+            <div id="profile-edit-section" style="display: none; padding: 15px; background: #121212; border: 1px solid #333; border-radius: 8px; margin-bottom: 15px;">
+                <h4 style="color: #fff; margin-bottom: 10px; border-bottom: 1px solid #333; padding-bottom: 5px;">Edit Profile</h4>
+                
+                <div style="margin-bottom: 10px;">
+                    <label style="font-size: 13px; display: block; margin-bottom: 5px; color: #aaa;">New Username:</label>
+                    <input type="text" id="newUsernameInput" placeholder="Enter new username" style="width: 100%; padding: 8px; border: 1px solid #444; border-radius: 4px; background: #1e1e1e; color: #fff; box-sizing: border-box;">
+                    <button id="updateUsernameBtn" style="margin-top: 5px; width: 100%; padding: 7px; background: #0095f6; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">Update Username</button>
+                </div>
+
+                <div>
+                    <label style="font-size: 13px; display: block; margin-bottom: 5px; color: #aaa;">Profile Picture:</label>
+                    <input type="file" id="profilePicInput" accept="image/*" style="width: 100%; color: #fff; margin-bottom: 5px; font-size: 12px;">
+                    <button id="updateProfilePicBtn" style="width: 100%; padding: 7px; background: #0095f6; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">Upload Profile Pic</button>
+                </div>
+            </div>
+
+            <hr style="border: 0; border-top: 1px solid #262626; margin-bottom: 15px;">
+            <h4 style="color: #fff; margin-bottom: 10px;">Posts</h4>
+            <div id="user-profile-posts" class="posts-feed"></div>
+        </main>
+    </div>
+
+
+    <!-- ================= UPLOAD POST MODAL ================= -->
+    <div id="upload-modal" class="modal-overlay">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h3>Create New Post</h3>
+                <button id="close-upload-modal"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <input type="file" id="post-file-input" accept="image/*">
+                <textarea id="post-caption-input" placeholder="Write a caption..."></textarea>
+                <button id="submit-post-btn">Share Post</button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ================= TELEGRAM UI (Chat View) ================= -->
+    <div id="tele-container" class="app-view">
+        <header class="tele-header">
+            <button id="switch-to-insta" class="back-btn"><i class="fa-solid fa-arrow-left"></i> ♾️</button>
+            <h3>Telegram Chats</h3>
+            <i class="fa-solid fa-ellipsis-vertical"></i>
+        </header>
+
+        <div class="tele-content">
+            <div class="tele-search-box">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="text" id="tele-user-search" placeholder="Search registered users...">
+            </div>
+            <div id="tele-user-list" class="user-list"></div>
+        </div>
+    </div>
+
+
+    <!-- ================= CHAT WINDOW SCREEN ================= -->
+    <div id="chat-window" class="chat-window-screen">
+        <div class="chat-win-header">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <button id="close-chat" class="back-btn"><i class="fa-solid fa-arrow-left"></i></button>
+                <!-- Purana 'U' icon aur static text yahan se hata diya gaya hai -->
+                <h4 id="active-chat-name" style="color: #fff; margin: 0;"></h4>
+            </div>
+            <button id="clear-chat-btn" style="background:transparent; border:none; color:#ed4956; font-size:16px; cursor:pointer;" title="Clear All Chat"><i class="fa-solid fa-trash-can"></i></button>
+        </div>
+        
+        <div class="chat-messages-area" id="chat-messages-area"></div>
+
         <div class="chat-input-area">
-            <input type="text" id="message-input" placeholder="Type a message...">
-            <button id="send-btn">Send</button>
+            <input type="text" id="chat-input-msg" placeholder="Write a message...">
+            <button id="send-chat-btn"><i class="fa-solid fa-paper-plane"></i></button>
         </div>
     </div>
-
+<!-- ================= DETAIL VIEW (Post/Reel) ================= -->
+<div id="detail-view-container" class="app-view">
+    <header class="insta-header">
+        <button id="back-from-detail" class="back-btn"><i class="fa-solid fa-arrow-left"></i></button>
+        <h2 id="detail-view-title">Post</h2>
+    </header>
+    <main id="detail-content" class="insta-main" style="padding-bottom: 20px;">
+        <!-- Yahan par wahi post-card inject hoga jo home page par dikhta hai -->
+    </main>
+</div>
     <script src="script.js"></script>
 </body>
 </html>
