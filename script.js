@@ -9,8 +9,10 @@ if (window.supabase) {
 
 window.addEventListener('DOMContentLoaded', () => {
     const activeUser = localStorage.getItem('currentUsername');
-    if (activeUser) {
+    if (activeUser && activeUser.trim() !== "") {
+        // Agar user pehle se logged in hai, toh login container chhupao aur feed dikhao
         document.getElementById('auth-container').classList.remove('active');
+        document.getElementById('auth-container').style.display = 'none';
         document.getElementById('main-app-content').style.display = 'flex';
         
         const lastView = localStorage.getItem('activeAppView') || 'insta-feed-container';
@@ -18,6 +20,11 @@ window.addEventListener('DOMContentLoaded', () => {
         loadUserData(activeUser);
         loadFeedPosts();
         updateUserOnlineStatus(activeUser, true);
+    } else {
+        // Agar logged in nahi hai, toh login page dikhao
+        document.getElementById('auth-container').classList.add('active');
+        document.getElementById('auth-container').style.display = 'flex';
+        document.getElementById('main-app-content').style.display = 'none';
     }
 
     window.addEventListener('beforeunload', () => {
