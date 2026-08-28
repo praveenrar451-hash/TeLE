@@ -882,6 +882,9 @@ async function fetchTelegramChats() {
     });
 }
 
+            // ==========================================
+// FIXED CHAT WINDOW WITH INSTANT AUTO-REFRESH & REAL-TIME
+// ==========================================
 async function openChatWindow(receiverName) {
     if (!chatWindowScreen) return;
     chatWindowScreen.classList.add('active');
@@ -903,23 +906,44 @@ async function openChatWindow(receiverName) {
         activeChatSubscription = null;
     }
 
-    // Fetch existing messages
-    const { data: messages } = await supabaseClient
-        .from('messages')
-        .select('*')
-        .or(`and(sender.eq.${myName},receiver.eq.${receiverName}),and(sender.eq.${receiverName},receiver.eq.${myName})`)
-        .order('created_at', { ascending: true });
+    // Function to load messages from database
+    const loadMessages = async (scrollToBottom = true) => {
+        const { data: messages } = await supabaseClient
+            .from('messages')
+            .select('*')
+            .or(`and(sender.eq.${myName},receiver.eq.${receiverName}),and(sender.eq.${receiverName},receiver.eq.${myName})`)
+            .order('created_at', { ascending: true });
 
-    if (messagesArea) {
-        messagesArea.innerHTML = '';
-        if (messages && messages.length > 0) {
-            messages.forEach(msg => appendChatMessage(msg));
-        } else {
-            messagesArea.innerHTML = '<p style="color:#555; text-align:center; margin-top:20px; font-size:12px;">No messages yet. Say hello!</p>';
+        if (messagesArea) {
+            const currentScrollHeight = messagesArea.scrollHeight;
+            const isAtBottom = messagesArea.scrollTop + messagesArea.clientHeight >= currentScrollHeight - 50;
+
+            messagesArea.innerHTML = '';
+            if (messages && messages.length > 0) {
+                messages.forEach(msg => appendChatMessage(msg));
+                if (scrollToBottom || isAtBottom) {
+                    messagesArea.scrollTop = messagesArea.scrollHeight;
+                }
+            } else {
+                messagesArea.innerHTML = '<p style="color:#555; text-align:center; margin-top:20px; font-size:12px;">No messages yet. Say hello!</p>';
+            }
         }
-    }
+    };
 
-    // REAL-TIME LISTENER FIX: BOTH SENT AND RECEIVED MESSAGES APPEAR INSTANTLY
+    // Initial load
+    await loadMessages(true);
+
+    // AUTO-POLLING INTERVAL (Checks for new messages every 1.5 seconds automatically)
+    // Yeh bina back kiye saamne wale ke bhejhe huye msg turant screen par la dega
+    const pollingInterval = setInterval(() => {
+        if (currentChatPartner !== receiverName) {
+            clearInterval(pollingInterval);
+            return;
+        }
+        loadMessages(false);
+    }, 1500);
+
+    // Realtime listener setup
     activeChatSubscription = supabaseClient
         .channel(`chat_${myName}_${receiverName}_${Date.now()}`)
         .on('postgres_changes', { 
@@ -928,23 +952,16 @@ async function openChatWindow(receiverName) {
             table: 'messages' 
         }, payload => {
             const newMsg = payload.new;
-            // Check if message belongs to current chat conversation
             if ((newMsg.sender === myName && newMsg.receiver === receiverName) || 
                 (newMsg.sender === receiverName && newMsg.receiver === myName)) {
-                
-                // Avoid duplicating messages sent locally by current user
-                if (newMsg.sender !== myName) {
-                    if (messagesArea.innerHTML.includes('No messages yet')) {
-                        messagesArea.innerHTML = '';
-                    }
-                    appendChatMessage(newMsg);
-                }
+                loadMessages(false);
             }
         })
         .subscribe();
 
     if (backBtn) {
         backBtn.onclick = () => {
+            clearInterval(pollingInterval);
             chatWindowScreen.classList.remove('active');
             currentChatPartner = null;
             if (activeChatSubscription) {
@@ -971,6 +988,7 @@ async function openChatWindow(receiverName) {
         
         // Optimistically display sent message instantly
         appendChatMessage({ sender: myName, receiver: receiverName, message: text });
+        messagesArea.scrollTop = messagesArea.scrollHeight;
 
         const { error: sendError } = await supabaseClient
             .from('messages')
@@ -979,6 +997,8 @@ async function openChatWindow(receiverName) {
         if (sendError) {
             console.error("Database insert error:", sendError);
             alert("Database Error: " + (sendError.message || "Failed to send message"));
+        } else {
+            loadMessages(false);
         }
     };
 
