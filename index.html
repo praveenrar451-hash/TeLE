@@ -96,7 +96,7 @@
                 </div>
                 <div id="chatroom-messages" style="flex:1; padding:16px; overflow-y:auto; display:flex; flex-direction:column; gap:10px;"></div>
                 <div class="chat-input-bar">
-                    <input type="text" id="chatroom-input" placeholder="Message..." class="insta-input" style="margin:0; flex:1;">
+                    <input type="text" id="chatroom-input" placeholder="Message..." class="insta-input" style="margin:0; flex:1;" onkeypress="if(event.key === 'Enter') sendChatMessage()">
                     <button onclick="sendChatMessage()" style="background:#0095f6; border:none; color:#fff; padding:0 16px; border-radius:6px; font-weight:600; cursor:pointer; height:42px;">Send</button>
                 </div>
             </div>
