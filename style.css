@@ -1,68 +1,49 @@
-:root {
-    --bg-black: #000;
-    --border-gray: #262626;
-    --insta-blue: #0095f6;
-    --text-white: #f5f5f5;
-}
+/* Google Font for Insta Logo */
+@import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&display=swap');
 
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body { background: #121212; color: var(--text-white); font-family: sans-serif; overflow: hidden; }
+* { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, sans-serif; }
+body { background-color: #fafafa; display: flex; justify-content: center; height: 100vh; overflow: hidden; }
 
-#app-wrapper {
-    width: 100%; max-width: 450px; height: 100vh; height: 100dvh;
-    margin: 0 auto; position: relative; background: var(--bg-black);
-    box-shadow: 0 0 20px rgba(0,0,0,0.5);
-}
+#app-wrapper { width: 100%; max-width: 420px; background: #fff; position: relative; border: 1px solid #dbdbdb; height: 100dvh; display: flex; flex-direction: column; }
 
-.app-view {
-    display: none; width: 100%; height: 100%; flex-direction: column;
-    position: absolute; top: 0; left: 0; background: var(--bg-black);
-}
+.app-view { display: none; width: 100%; height: 100%; flex-direction: column; background: #fff; }
 .app-view.active { display: flex; }
 
-/* HEADER & NAV */
-.view-header, .reels-header, .tele-header {
-    height: 55px; border-bottom: 1px solid var(--border-gray);
-    display: flex; justify-content: space-between; align-items: center; padding: 0 15px;
-}
+/* --- LOGIN PAGE STYLING --- */
+#login-view { background-color: #fafafa; justify-content: center; align-items: center; padding: 20px; }
+.login-main-card { background: #fff; border: 1px solid #dbdbdb; width: 100%; padding: 40px 30px; text-align: center; }
+.signup-footer-card { background: #fff; border: 1px solid #dbdbdb; width: 100%; padding: 20px; margin-top: 10px; text-align: center; font-size: 14px; }
 
-#bottom-nav {
-    position: absolute; bottom: 0; width: 100%; height: 55px;
-    background: var(--bg-black); border-top: 1px solid var(--border-gray);
-    display: flex; justify-content: space-around; align-items: center; z-index: 100;
-}
-#bottom-nav i { font-size: 22px; color: #888; cursor: pointer; }
-#bottom-nav i.active { color: #fff; }
+.insta-logo { font-family: 'Dancing Script', cursive; font-size: 42px; margin-bottom: 30px; }
+.insta-logo-small { font-family: 'Dancing Script', cursive; font-size: 24px; }
 
-.scroll-content { flex: 1; overflow-y: auto; padding-bottom: 60px; scrollbar-width: none; }
-.scroll-content::-webkit-scrollbar { display: none; }
+.login-form input { width: 100%; padding: 10px; background: #fafafa; border: 1px solid #dbdbdb; border-radius: 3px; margin-bottom: 8px; font-size: 12px; outline: none; }
+#login-btn { width: 100%; background: #0095f6; color: #fff; border: none; padding: 8px; border-radius: 8px; font-weight: 600; cursor: pointer; margin: 10px 0; }
+.or-divider { display: flex; align-items: center; margin: 15px 0; }
+.line { flex: 1; height: 1px; background: #dbdbdb; }
+.or-text { padding: 0 15px; color: #8e8e8e; font-size: 13px; font-weight: 600; }
+.fb-login-btn { background: none; border: none; color: #385185; font-weight: 600; cursor: pointer; }
+.error-msg { color: #ed4956; font-size: 13px; margin-top: 15px; }
 
-/* POST CARD */
-.post-card { margin-bottom: 15px; border-bottom: 1px solid var(--border-gray); }
-.post-img-container { position: relative; width: 100%; aspect-ratio: 1; overflow: hidden; }
-.post-img-container img { width: 100%; height: 100%; object-fit: cover; }
+/* --- APP COMPONENTS --- */
+.app-header, .tele-header { height: 50px; border-bottom: 1px solid #dbdbdb; display: flex; justify-content: space-between; align-items: center; padding: 0 15px; background: #fff; }
+.header-icon { background: none; border: none; font-size: 20px; cursor: pointer; margin-left: 15px; }
 
-/* DOUBLE TAP HEART */
-.heart-icon {
-    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0);
-    font-size: 80px; color: #fff; opacity: 0; pointer-events: none;
-}
-.heart-icon.animate { animation: pop 0.7s ease-out; }
-@keyframes pop {
-    0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
-    50% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
-    100% { transform: translate(-50%, -50%) scale(1); opacity: 0; }
-}
+.content-scroll { flex: 1; overflow-y: auto; padding-bottom: 60px; scrollbar-width: none; }
+.content-scroll::-webkit-scrollbar { display: none; }
 
-/* REELS SNAPPING */
-.snapping-feed { flex: 1; overflow-y: scroll; scroll-snap-type: y mandatory; }
-.reel-video { width: 100%; height: 100%; scroll-snap-align: start; object-fit: cover; }
+/* Bottom Nav */
+#bottom-nav { position: absolute; bottom: 0; width: 100%; height: 50px; background: #fff; border-top: 1px solid #dbdbdb; display: flex; justify-content: space-around; align-items: center; z-index: 100; }
+#bottom-nav i { font-size: 20px; color: #262626; cursor: pointer; }
+#bottom-nav i.active { color: #000; }
 
-/* CHAT STYLING */
-.msg { padding: 10px 15px; margin: 5px; border-radius: 15px; max-width: 70%; font-size: 14px; }
-.msg.sent { background: var(--insta-blue); align-self: flex-end; margin-left: auto; }
-.msg.received { background: var(--border-gray); align-self: flex-start; }
+/* Reels Snap */
+.reels-container { flex: 1; overflow-y: scroll; scroll-snap-type: y mandatory; background: #000; }
+.reel-item { height: 100%; width: 100%; scroll-snap-align: start; position: relative; }
 
-/* IMAGE GRID (Explore/Profile) */
+/* Grids */
 .image-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; }
 .image-grid img { width: 100%; aspect-ratio: 1; object-fit: cover; }
+
+/* Telegram Style */
+.tele-search input { width: 90%; margin: 10px 5%; padding: 8px; border-radius: 8px; border: none; background: #efefef; outline: none; }
