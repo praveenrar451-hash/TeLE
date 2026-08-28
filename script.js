@@ -1,5 +1,5 @@
 // ==========================================
-// INSTA-TELE APP SCRIPT.JS (BUTTON CLICK FIX)
+// INSTA-TELE APP SCRIPT.JS (BULLETPROOF CHAT FIX)
 // ==========================================
 
 const SUPABASE_URL = 'https://ydjbojsqeujahgqinfmk.supabase.co';
@@ -923,10 +923,13 @@ async function openChatWindow(receiverName) {
         };
     }
 
-    // 100% WORKING SEND FUNCTION ASSIGNED DIRECTLY TO DOM ELEMENTS
-    window.executeSendMessage = async () => {
+    // UNIVERSAL BULLETPROOF SEND LOGIC
+    const handleSendMessage = async (e) => {
+        if (e) e.preventDefault(); // Form reload rokne ke liye
+        
         const inputElem = document.getElementById('chat-msg-input');
         if (!inputElem) return;
+        
         const text = inputElem.value.trim();
         if (!text) return;
 
@@ -948,14 +951,26 @@ async function openChatWindow(receiverName) {
     };
 
     if (sendBtn) {
-        sendBtn.onclick = window.executeSendMessage;
+        // Purane listeners clear karke naya lagane ke liye clone node use kiya hai
+        const newSendBtn = sendBtn.cloneNode(true);
+        sendBtn.parentNode.replaceChild(newSendBtn, sendBtn);
+        
+        newSendBtn.addEventListener('click', handleSendMessage);
+        newSendBtn.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            handleSendMessage();
+        });
     }
+
     if (chatInput) {
-        chatInput.onkeypress = (e) => {
+        const newInput = chatInput.cloneNode(true);
+        chatInput.parentNode.replaceChild(newInput, chatInput);
+
+        newInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
-                window.executeSendMessage();
+                handleSendMessage(e);
             }
-        };
+        });
     }
 }
 
