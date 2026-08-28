@@ -30,7 +30,7 @@ async function handleAuthLogin() {
     if (supabaseClient) {
         const { data } = await supabaseClient.from('users').select('*').eq('username', usernameInput);
         if (!data || data.length === 0) {
-            await supabaseClient.from('users').insert([{ username: usernameInput, bio: 'Digital Creator' }]);
+            await supabaseClient.from('users').insert([{ username: usernameInput, bio: 'Digital Creator', avatar_url: '' }]);
         }
     }
 
@@ -92,7 +92,7 @@ async function addAndSwitchAccount() {
     if (supabaseClient) {
         const { data } = await supabaseClient.from('users').select('*').eq('username', inputAcc);
         if (!data || data.length === 0) {
-            await supabaseClient.from('users').insert([{ username: inputAcc, bio: 'Digital Creator' }]);
+            await supabaseClient.from('users').insert([{ username: inputAcc, bio: 'Digital Creator', avatar_url: '' }]);
         }
     }
     
@@ -102,6 +102,11 @@ async function addAndSwitchAccount() {
 }
 
 window.switchView = function(viewId) {
+    if (activeChatSubscription && viewId !== 'chatroom-container') {
+        supabaseClient.removeChannel(activeChatSubscription);
+        activeChatSubscription = null;
+    }
+
     document.querySelectorAll('.app-view').forEach(v => v.classList.remove('active', 'active-view'));
     const target = document.getElementById(viewId);
     if (target) {
@@ -117,27 +122,32 @@ async function loadUserData(username) {
     document.getElementById('top-profile-username').textContent = username;
     document.getElementById('my-profile-display-name').textContent = username;
 
-    const savedBio = localStorage.getItem(`userBio_${username}`) || 'Digital Creator';
-    document.getElementById('profile-bio-text').textContent = savedBio;
-
-    const savedAvatar = localStorage.getItem(`userAvatar_${username}`);
-    const avatars = [
-        document.getElementById('my-profile-avatar'), 
-        document.getElementById('nav-mini-avatar'),
-        document.getElementById('feed-story-avatar')
-    ];
-    
-    avatars.forEach(el => {
-        if (!el) return;
-        if (savedAvatar) {
-            el.style.backgroundImage = `url('${savedAvatar}')`;
-            el.textContent = '';
-        } else {
-            el.textContent = username.charAt(0).toUpperCase();
-        }
-    });
-
     if (supabaseClient) {
+        const { data: userData } = await supabaseClient.from('users').select('*').eq('username', username).single();
+        if (userData) {
+            const userBio = userData.bio || 'Digital Creator';
+            const userAvatar = userData.avatar_url || '';
+
+            document.getElementById('profile-bio-text').textContent = userBio;
+
+            const avatars = [
+                document.getElementById('my-profile-avatar'), 
+                document.getElementById('nav-mini-avatar'),
+                document.getElementById('feed-story-avatar')
+            ];
+            
+            avatars.forEach(el => {
+                if (!el) return;
+                if (userAvatar) {
+                    el.style.backgroundImage = `url('${userAvatar}')`;
+                    el.textContent = '';
+                } else {
+                    el.style.backgroundImage = '';
+                    el.textContent = username.charAt(0).toUpperCase();
+                }
+            });
+        }
+
         const { count: pCount } = await supabaseClient.from('posts').select('*', { count: 'exact', head: true }).eq('username', username);
         document.getElementById('profile-posts-count').textContent = pCount || 0;
 
@@ -175,12 +185,11 @@ async function saveProfileChanges() {
         return;
     }
 
-    if (supabaseClient && newUsername !== oldUsername) {
+    if (supabaseClient) {
         await supabaseClient.from('users').update({ username: newUsername, bio: newBio }).eq('username', oldUsername);
     }
 
     localStorage.setItem('currentUsername', newUsername);
-    localStorage.setItem(`userBio_${newUsername}`, newBio);
     saveAccountToList(newUsername);
     
     closeEditProfileModal();
@@ -193,10 +202,14 @@ function handleProfilePicUpload(event) {
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = function(e) {
+    reader.onload = async function(e) {
         const imgSrc = e.target.result;
         const username = localStorage.getItem('currentUsername');
-        localStorage.setItem(`userAvatar_${username}`, imgSrc);
+
+        if (supabaseClient) {
+            await supabaseClient.from('users').update({ avatar_url: imgSrc }).eq('username', username);
+        }
+
         loadUserData(username);
         alert("Profile picture updated!");
     };
@@ -228,7 +241,13 @@ async function loadFeedPosts() {
     if (!feedList) return;
 
     let posts = [];
+    let usersMap = {};
     if (supabaseClient) {
+        const { data: usersData } = await supabaseClient.from('users').select('username, avatar_url');
+        if (usersData) {
+            usersData.forEach(u => { usersMap[u.username] = u.avatar_url; });
+        }
+
         const { data } = await supabaseClient.from('posts').select('*').order('created_at', { ascending: false });
         if (data) posts = data;
     }
@@ -240,7 +259,7 @@ async function loadFeedPosts() {
 
     feedList.innerHTML = '';
     posts.forEach(post => {
-        const userAvatar = localStorage.getItem(`userAvatar_${post.username}`) || '';
+        const userAvatar = usersMap[post.username] || '';
         const avatarStyle = userAvatar ? `background-image: url('${userAvatar}');` : '';
 
         const card = document.createElement('div');
@@ -272,7 +291,7 @@ async function handleUserSearch(query) {
     const resultsList = document.getElementById('search-results-list');
     if (!supabaseClient) return;
 
-    let queryBuilder = supabaseClient.from('users').select('username, bio');
+    let queryBuilder = supabaseClient.from('users').select('username, bio, avatar_url');
     if (query.trim()) {
         queryBuilder = queryBuilder.ilike('username', `%${query}%`);
     }
@@ -282,11 +301,12 @@ async function handleUserSearch(query) {
     
     if (data && data.length > 0) {
         data.forEach(user => {
+            const avatarStyle = user.avatar_url ? `background-image: url('${user.avatar_url}');` : '';
             const row = document.createElement('div');
             row.style.cssText = "display:flex; align-items:center; padding:10px 0; gap:12px; cursor:pointer; border-bottom:1px solid #1a1a1a;";
             row.onclick = () => viewUserProfile(user.username);
             row.innerHTML = `
-                <div class="avatar" style="width:44px; height:44px; font-size:16px;">${user.username.charAt(0).toUpperCase()}</div>
+                <div class="avatar" style="width:44px; height:44px; font-size:16px; ${avatarStyle}">${user.avatar_url ? '' : user.username.charAt(0).toUpperCase()}</div>
                 <div>
                     <b style="font-size:14px; display:block;">${user.username}</b>
                     <span style="font-size:12px; color:#8e8e8e;">${user.bio || 'Digital Creator'}</span>
@@ -312,20 +332,20 @@ async function viewUserProfile(username) {
     document.getElementById('other-profile-username-top').textContent = username;
     document.getElementById('other-profile-display-name').textContent = username;
 
-    const savedAvatar = localStorage.getItem(`userAvatar_${username}`);
     const avatarEl = document.getElementById('other-profile-avatar');
-    if (savedAvatar) {
-        avatarEl.style.backgroundImage = `url('${savedAvatar}')`;
-        avatarEl.textContent = '';
-    } else {
-        avatarEl.style.backgroundImage = '';
-        avatarEl.textContent = username.charAt(0).toUpperCase();
-    }
+    avatarEl.style.backgroundImage = '';
+    avatarEl.textContent = username.charAt(0).toUpperCase();
 
     if (supabaseClient) {
-        const { data: userData } = await supabaseClient.from('users').select('bio').eq('username', username).single();
-        if (userData && userData.bio) {
-            document.getElementById('other-profile-bio-text').textContent = userData.bio;
+        const { data: userData } = await supabaseClient.from('users').select('bio, avatar_url').eq('username', username).single();
+        if (userData) {
+            if (userData.bio) {
+                document.getElementById('other-profile-bio-text').textContent = userData.bio;
+            }
+            if (userData.avatar_url) {
+                avatarEl.style.backgroundImage = `url('${userData.avatar_url}')`;
+                avatarEl.textContent = '';
+            }
         }
 
         const { count: pCount } = await supabaseClient.from('posts').select('*', { count: 'exact', head: true }).eq('username', username);
@@ -397,20 +417,21 @@ async function openChatList() {
     
     if (!supabaseClient) return;
 
-    const { data } = await supabaseClient.from('users').select('username, bio').neq('username', currentUser);
+    const { data } = await supabaseClient.from('users').select('username, bio, avatar_url').neq('username', currentUser);
     chatUsersList.innerHTML = '';
 
     if (data && data.length > 0) {
         data.forEach(user => {
+            const avatarStyle = user.avatar_url ? `background-image: url('${user.avatar_url}');` : '';
             const row = document.createElement('div');
             row.style.cssText = "display:flex; align-items:center; padding:10px 16px; gap:12px; cursor:pointer; justify-content:space-between;";
             row.onclick = () => openChatWith(user.username);
             row.innerHTML = `
                 <div style="display:flex; align-items:center; gap:12px;">
-                    <div class="avatar" style="width:44px; height:44px; font-size:16px;">${user.username.charAt(0).toUpperCase()}</div>
+                    <div class="avatar" style="width:44px; height:44px; font-size:16px; ${avatarStyle}">${user.avatar_url ? '' : user.username.charAt(0).toUpperCase()}</div>
                     <div>
                         <b style="font-size:14px; display:block;">${user.username}</b>
-                        <span style="font-size:12px; color:#8e8e8e;">Active user</span>
+                        <span style="font-size:12px; color:#8e8e8e;">${user.bio || 'Active user'}</span>
                     </div>
                 </div>
                 <i class="fa-solid fa-chevron-right" style="font-size:12px; color:#8e8e8e;"></i>
@@ -423,14 +444,27 @@ async function openChatList() {
 }
 
 let activeChatUser = '';
+let activeChatSubscription = null;
 
 async function openChatWith(username) {
     activeChatUser = username;
     switchView('chatroom-container');
     document.getElementById('chatroom-title').textContent = username;
-    document.getElementById('chatroom-avatar').textContent = username.charAt(0).toUpperCase();
+    
+    const avatarEl = document.getElementById('chatroom-avatar');
+    avatarEl.style.backgroundImage = '';
+    avatarEl.textContent = username.charAt(0).toUpperCase();
+
+    if (supabaseClient) {
+        const { data: userData } = await supabaseClient.from('users').select('avatar_url').eq('username', username).single();
+        if (userData && userData.avatar_url) {
+            avatarEl.style.backgroundImage = `url('${userData.avatar_url}')`;
+            avatarEl.textContent = '';
+        }
+    }
     
     await loadChatMessages();
+    setupRealtimeChat();
 }
 
 async function loadChatMessages() {
@@ -440,7 +474,7 @@ async function loadChatMessages() {
 
     if (!supabaseClient) return;
 
-    const { data, error } = await supabaseClient
+    const { data } = await supabaseClient
         .from('messages')
         .select('*')
         .or(`and(sender.eq.${currentUser},receiver.eq.${activeChatUser}),and(sender.eq.${activeChatUser},receiver.eq.${currentUser})`)
@@ -460,6 +494,27 @@ async function loadChatMessages() {
     msgContainer.scrollTop = msgContainer.scrollHeight;
 }
 
+function setupRealtimeChat() {
+    if (!supabaseClient) return;
+    if (activeChatSubscription) {
+        supabaseClient.removeChannel(activeChatSubscription);
+    }
+
+    activeChatSubscription = supabaseClient
+        .channel('public:messages')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
+            const newMsg = payload.new;
+            const currentUser = localStorage.getItem('currentUsername');
+            if (
+                (newMsg.sender === currentUser && newMsg.receiver === activeChatUser) ||
+                (newMsg.sender === activeChatUser && newMsg.receiver === currentUser)
+            ) {
+                loadChatMessages();
+            }
+        })
+        .subscribe();
+}
+
 async function sendChatMessage() {
     const inputEl = document.getElementById('chatroom-input');
     const text = inputEl.value.trim();
@@ -467,18 +522,16 @@ async function sendChatMessage() {
 
     if (!text || !supabaseClient) return;
 
+    inputEl.value = '';
     const { error } = await supabaseClient.from('messages').insert([
         { sender: currentUser, receiver: activeChatUser, message: text }
     ]);
 
-    if (!error) {
-        inputEl.value = '';
-        await loadChatMessages();
-    } else {
-        alert("Failed to send message. Make sure 'messages' table exists in Supabase.");
+    if (error) {
+        alert("Failed to send message.");
     }
 }
 
 function openChatWithUser() {
     openChatWith(viewingTargetUser);
-}
+            }
