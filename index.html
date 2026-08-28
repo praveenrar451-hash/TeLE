@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>InstaTELE</title>
-    <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
     * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
@@ -54,7 +53,6 @@
 
     <div id="app-wrapper">
         
-        <!-- LOGIN / AUTH SCREEN -->
         <div id="auth-container" class="active">
             <div class="auth-box">
                 <h2 style="text-align:center; font-family:cursive; margin-bottom:20px;">InstaTELE</h2>
@@ -63,10 +61,8 @@
             </div>
         </div>
 
-        <!-- MAIN APP CONTENT -->
         <div id="main-app-content">
 
-            <!-- 1. FEED CONTAINER -->
             <div id="insta-feed-container" class="app-view active-view">
                 <div class="top-bar">
                     <span class="logo-text">InstaTELE</span>
@@ -76,11 +72,9 @@
                     </div>
                 </div>
                 <div style="flex:1; overflow-y:auto;" id="feed-posts-list">
-                    <!-- Dynamic Posts -->
-                </div>
+                    </div>
             </div>
 
-            <!-- 2. EXPLORE / SEARCH CONTAINER -->
             <div id="explore-container" class="app-view">
                 <div style="padding: 10px 16px; border-bottom: 1px solid #262626;">
                     <input type="text" id="search-input" placeholder="Search users..." oninput="handleUserSearch(this.value)" style="width:100%; background:#262626; border:none; padding:8px 12px; border-radius:8px; color:#fff; outline:none;">
@@ -88,20 +82,29 @@
                 <div id="search-results-list" style="flex:1; overflow-y:auto; padding: 10px 16px;"></div>
             </div>
 
-            <!-- 3. CREATE POST CONTAINER -->
-            <div id="create-container" class="app-view" style="padding: 20px; justify-content:center;">
-                <h3 style="margin-bottom: 15px;">Create New Post</h3>
-                <input type="text" id="create-img-url" placeholder="Image URL" style="background:#262626; border:none; padding:10px; border-radius:6px; color:#fff; margin-bottom:10px; outline:none;">
-                <textarea id="create-caption" placeholder="Write a caption..." style="background:#262626; border:none; padding:10px; border-radius:6px; color:#fff; margin-bottom:15px; outline:none; height:80px; resize:none;"></textarea>
-                <button onclick="submitNewPost()" style="background:#0095f6; border:none; padding:10px; border-radius:6px; color:#fff; font-weight:bold; cursor:pointer;">Share Post</button>
+            <div id="create-container" class="app-view" style="padding: 20px; flex-direction:column; align-items:center;">
+                <div class="top-bar" style="width:100%; margin-bottom:20px;">
+                    <i class="fa-solid fa-arrow-left" style="cursor:pointer;" onclick="switchView('insta-feed-container')"></i>
+                    <b>Create New Post</b>
+                    <div></div>
+                </div>
+                <div style="width:100%; max-width:400px; display:flex; flex-direction:column; gap:16px;">
+                    <input type="file" id="post-file-input" accept="image/*" style="display:none;" onchange="previewSelectedImage(event)">
+                    
+                    <div id="post-preview-box" onclick="document.getElementById('post-file-input').click()" style="width:100%; aspect-ratio:1/1; background:#121212; border:2px dashed #363636; border-radius:12px; display:flex; flex-direction:column; justify-content:center; align-items:center; cursor:pointer; overflow:hidden; position:relative;">
+                        <i class="fa-solid fa-cloud-arrow-up" style="font-size:36px; color:#8e8e8e; margin-bottom:10px;"></i>
+                        <span style="color:#8e8e8e; font-size:14px;">Tap to select photo from gallery</span>
+                    </div>
+
+                    <textarea id="create-caption" placeholder="Write a caption..." style="width:100%; height:80px; background:#121212; border:1px solid #363636; border-radius:8px; padding:12px; color:#fff; outline:none; font-size:14px; resize:none;"></textarea>
+                    
+                    <button onclick="submitNewPost()" style="width:100%; background:#0095f6; border:none; padding:12px; border-radius:8px; color:#fff; font-weight:bold; font-size:14px; cursor:pointer;">Share Post</button>
+                </div>
             </div>
 
-            <!-- 4. REELS CONTAINER -->
             <div id="reels-container" class="app-view">
-                <!-- Loaded via JS -->
-            </div>
+                </div>
 
-            <!-- 5. PROFILE CONTAINER -->
             <div id="profile-container" class="app-view">
                 <div class="top-bar">
                     <b id="top-profile-username" style="font-size: 16px;">username</b>
@@ -117,11 +120,11 @@
                             <b id="profile-posts-count" style="display:block; font-size:16px;">0</b>
                             <span style="font-size:12px; color:#8e8e8e;">posts</span>
                         </div>
-                        <div onclick="openFollowersList(localStorage.getItem('currentUsername'))" style="cursor:pointer;">
+                        <div style="cursor:pointer;">
                             <b id="profile-followers-count" style="display:block; font-size:16px;">0</b>
                             <span style="font-size:12px; color:#8e8e8e;">followers</span>
                         </div>
-                        <div onclick="openFollowingList(localStorage.getItem('currentUsername'))" style="cursor:pointer;">
+                        <div style="cursor:pointer;">
                             <b id="profile-following-count" style="display:block; font-size:16px;">0</b>
                             <span style="font-size:12px; color:#8e8e8e;">following</span>
                         </div>
@@ -133,12 +136,10 @@
                 </div>
                 <div style="padding: 0 16px 15px 16px; display:flex; gap:8px;">
                     <button onclick="openEditProfileModal()" style="flex:1; background:#262626; border:none; color:#fff; padding:6px; border-radius:6px; font-weight:bold; cursor:pointer; font-size:13px;">Edit Profile</button>
-                    <button onclick="loadSavedPostsGrid()" style="background:#262626; border:none; color:#fff; padding:6px 12px; border-radius:6px; font-weight:bold; cursor:pointer; font-size:13px;"><i class="fa-regular fa-bookmark"></i></button>
                 </div>
                 <div id="my-profile-grid" style="display:grid; grid-template-columns: repeat(3, 1fr); gap:2px; flex:1; overflow-y:auto;"></div>
             </div>
 
-            <!-- 6. OTHER USER PROFILE CONTAINER -->
             <div id="user-profile-container" class="app-view">
                 <div class="top-bar">
                     <i class="fa-solid fa-arrow-left" style="cursor:pointer;" onclick="switchView('explore-container')"></i>
@@ -152,11 +153,11 @@
                             <b id="other-profile-posts-count" style="display:block; font-size:16px;">0</b>
                             <span style="font-size:12px; color:#8e8e8e;">posts</span>
                         </div>
-                        <div onclick="openFollowersList(viewingTargetUser)" style="cursor:pointer;">
+                        <div style="cursor:pointer;">
                             <b id="other-profile-followers-count" style="display:block; font-size:16px;">0</b>
                             <span style="font-size:12px; color:#8e8e8e;">followers</span>
                         </div>
-                        <div onclick="openFollowingList(viewingTargetUser)" style="cursor:pointer;">
+                        <div style="cursor:pointer;">
                             <b id="other-profile-following-count" style="display:block; font-size:16px;">0</b>
                             <span style="font-size:12px; color:#8e8e8e;">following</span>
                         </div>
@@ -173,7 +174,6 @@
                 <div id="other-profile-grid" style="display:grid; grid-template-columns: repeat(3, 1fr); gap:2px; flex:1; overflow-y:auto;"></div>
             </div>
 
-            <!-- 7. CHAT LIST CONTAINER -->
             <div id="chat-container" class="app-view">
                 <div class="top-bar">
                     <i class="fa-solid fa-arrow-left" style="cursor:pointer;" onclick="switchView('insta-feed-container')"></i>
@@ -183,7 +183,6 @@
                 <div id="chat-users-list" style="flex:1; overflow-y:auto;"></div>
             </div>
 
-            <!-- 8. CHAT ROOM CONTAINER -->
             <div id="chatroom-container" class="app-view" style="display:none; flex-direction:column; height:100%;">
                 <div class="top-bar" style="display:flex; align-items:center;">
                     <div style="display:flex; align-items:center; gap:10px;">
@@ -210,8 +209,6 @@
                 </div>
             </div>
 
-            <!-- MODALS -->
-            <!-- Edit Profile Modal -->
             <div id="edit-profile-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:1000; justify-content:center; align-items:center;">
                 <div style="background:#262626; width:90%; max-width:320px; padding:20px; border-radius:12px; display:flex; flex-direction:column; gap:12px;">
                     <b>Edit Profile</b>
@@ -224,7 +221,6 @@
                 </div>
             </div>
 
-            <!-- Switch Account Modal -->
             <div id="switch-account-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:1000; justify-content:center; align-items:center;">
                 <div style="background:#262626; width:90%; max-width:320px; padding:20px; border-radius:12px; display:flex; flex-direction:column; gap:12px;">
                     <b>Switch / Add Account</b>
@@ -237,7 +233,6 @@
                 </div>
             </div>
 
-            <!-- Bottom Navigation Bar -->
             <div class="bottom-nav">
                 <i class="fa-solid fa-house" onclick="switchView('insta-feed-container')"></i>
                 <i class="fa-solid fa-magnifying-glass" onclick="switchView('explore-container')"></i>
@@ -249,7 +244,6 @@
         </div>
     </div>
 
-    <!-- Script File -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="script.js"></script>
 </body>
