@@ -500,8 +500,11 @@ function setupRealtimeChat() {
         supabaseClient.removeChannel(activeChatSubscription);
     }
 
+    // Unique channel name for each chat session to avoid caching conflicts
+    const channelName = `public:messages_${Date.now()}`;
+
     activeChatSubscription = supabaseClient
-        .channel('custom-all-messages')
+        .channel(channelName)
         .on(
             'postgres_changes',
             {
@@ -513,7 +516,6 @@ function setupRealtimeChat() {
                 const newMsg = payload.new;
                 const currentUser = localStorage.getItem('currentUsername');
                 
-                // Check if the incoming message belongs to the currently open chat room
                 if (
                     (newMsg.sender === currentUser && newMsg.receiver === activeChatUser) ||
                     (newMsg.sender === activeChatUser && newMsg.receiver === currentUser)
@@ -522,14 +524,17 @@ function setupRealtimeChat() {
                 }
             }
         )
-        .subscribe();
+        .subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+                console.log("Realtime connected successfully!");
+            }
+        });
 }
 
 function appendMessageToDOM(msg) {
     const msgContainer = document.getElementById('chatroom-messages');
     const currentUser = localStorage.getItem('currentUsername');
     
-    // Remove "No messages yet" placeholder if present
     const placeholder = msgContainer.querySelector('div[style*="text-align:center"]');
     if (placeholder) placeholder.remove();
 
@@ -560,4 +565,4 @@ async function sendChatMessage() {
 
 function openChatWithUser() {
     openChatWith(viewingTargetUser);
-                                                                            }
+                                                                 }
