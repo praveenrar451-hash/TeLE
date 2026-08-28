@@ -5,44 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>InstaTele</title>
     <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
     <div id="app-wrapper">
-        <!-- 1. LOGIN PAGE -->
+        <!-- LOGIN VIEW -->
         <div id="view-login" class="app-view active">
-            <div class="login-card">
-                <h1 class="logo">InstaTele</h1>
-                <input type="text" id="inp-user" placeholder="Username">
-                <input type="password" id="inp-pass" placeholder="Password">
-                <button id="btn-login">Log In</button>
-                <p id="msg-error" style="color:red; font-size:12px; margin-top:10px;"></p>
+            <div style="text-align: center; padding: 40px; border: 1px solid #dbdbdb; background: white;">
+                <h1 style="font-family: cursive; margin-bottom: 20px;">InstaTele</h1>
+                <input type="text" id="user-inp" placeholder="Username" style="width:100%; padding:10px; margin-bottom:10px; border:1px solid #dbdbdb;">
+                <input type="password" id="pass-inp" placeholder="Password" style="width:100%; padding:10px; margin-bottom:10px; border:1px solid #dbdbdb;">
+                <button id="login-btn" style="width:100%; padding:10px; background:#0095f6; color:white; border:none; border-radius:5px; font-weight:bold; cursor:pointer;">Log In</button>
+                <p id="err-msg" style="color:red; font-size:12px; margin-top:10px;"></p>
             </div>
         </div>
 
-        <!-- 2. HOME PAGE (Feed) -->
+        <!-- HOME VIEW -->
         <div id="view-home" class="app-view">
-            <header class="header">
-                <h2 class="logo-small">InstaTele</h2>
-                <button id="btn-logout">Logout</button>
-            </header>
-            <main id="feed-container">
-                <p style="padding:20px; text-align:center; color:gray;">Feed loading...</p>
-            </main>
-        </div>
-
-        <!-- BOTTOM NAV -->
-        <nav id="nav-bar" style="display:none;">
-            <i class="fa-solid fa-house"></i>
-            <i class="fa-solid fa-magnifying-glass"></i>
-            <i class="fa-solid fa-square-plus"></i>
-            <i class="fa-solid fa-clapperboard"></i>
-            <i class="fa-solid fa-user"></i>
-        </nav>
-    </div>
-
-    <script src="script.js"></script>
-</body>
-</html>
+            <header style="padding:15px; border-bottom:1px solid #dbdbdb; display:flex; justify-content:space-between;">
+                <h2 style="font-family: cursive;">InstaTele</h2>
+                <button id="logout-btn" style="background:none;
