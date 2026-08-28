@@ -5,24 +5,63 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>InstaTele</title>
     <link rel="stylesheet" href="style.css">
+    <!-- Font Awesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Supabase JS Library -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
     <div id="app-wrapper">
-        <!-- LOGIN VIEW -->
-        <div id="view-login" class="app-view active">
-            <div style="text-align: center; padding: 40px; border: 1px solid #dbdbdb; background: white;">
-                <h1 style="font-family: cursive; margin-bottom: 20px;">InstaTele</h1>
-                <input type="text" id="user-inp" placeholder="Username" style="width:100%; padding:10px; margin-bottom:10px; border:1px solid #dbdbdb;">
-                <input type="password" id="pass-inp" placeholder="Password" style="width:100%; padding:10px; margin-bottom:10px; border:1px solid #dbdbdb;">
-                <button id="login-btn" style="width:100%; padding:10px; background:#0095f6; color:white; border:none; border-radius:5px; font-weight:bold; cursor:pointer;">Log In</button>
-                <p id="err-msg" style="color:red; font-size:12px; margin-top:10px;"></p>
+        <!-- 1. LOGIN VIEW (Instagram Style) -->
+        <div id="login-view" class="app-view active">
+            <div class="login-card">
+                <h1 class="insta-logo">InstaTele</h1>
+                <div class="login-inputs">
+                    <input type="text" id="login-username" placeholder="Phone number, username, or email">
+                    <input type="password" id="login-password" placeholder="Password">
+                    <button id="login-btn">Log In</button>
+                </div>
+                <div class="or-divider">
+                    <div class="line"></div> <div class="or-text">OR</div> <div class="line"></div>
+                </div>
+                <button class="fb-login"><i class="fa-brands fa-square-facebook"></i> Log in with Facebook</button>
+                <p id="login-error" class="error-msg"></p>
+            </div>
+            <div class="signup-box">
+                <p>Don't have an account? <a href="#">Sign up</a></p>
             </div>
         </div>
 
-        <!-- HOME VIEW -->
-        <div id="view-home" class="app-view">
-            <header style="padding:15px; border-bottom:1px solid #dbdbdb; display:flex; justify-content:space-between;">
-                <h2 style="font-family: cursive;">InstaTele</h2>
-                <button id="logout-btn" style="background:none;
+        <!-- 2. HOME VIEW (Main App) -->
+        <div id="home-view" class="app-view">
+            <header class="home-header">
+                <h2 class="insta-logo-small">InstaTele</h2>
+                <div class="header-actions">
+                    <i class="fa-regular fa-heart"></i>
+                    <i class="fa-regular fa-paper-plane" id="btn-to-tele"></i>
+                </div>
+            </header>
+            
+            <main id="home-content">
+                <!-- Posts yahan aayenge baad mein -->
+                <div class="welcome-msg">
+                    <h3>Welcome to your Home Feed!</h3>
+                    <p>Abhi yahan posts add karne baaki hain.</p>
+                </div>
+            </main>
+
+            <!-- Bottom Navigation Placeholder -->
+            <nav id="bottom-nav">
+                <i class="fa-solid fa-house"></i>
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <i class="fa-solid fa-square-plus"></i>
+                <i class="fa-solid fa-clapperboard"></i>
+                <i id="btn-to-profile" class="fa-solid fa-user"></i>
+            </nav>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
