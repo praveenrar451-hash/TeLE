@@ -9,83 +9,38 @@ if (window.supabase) {
 
 window.addEventListener('DOMContentLoaded', () => {
     const activeUser = localStorage.getItem('currentUsername');
-    const authEl = document.getElementById('auth-container');
-    const mainApp = document.getElementById('main-app-content');
-
-    if (activeUser && activeUser.trim() !== "") {
-        if (authEl) {
-            authEl.classList.remove('active');
-            authEl.style.display = 'none';
-        }
-        if (mainApp) {
-            mainApp.style.display = 'flex';
-        }
+    if (activeUser) {
+        document.getElementById('auth-container').classList.remove('active');
+        document.getElementById('main-app-content').style.display = 'flex';
         
         const lastView = localStorage.getItem('activeAppView') || 'insta-feed-container';
         switchView(lastView);
         loadUserData(activeUser);
         loadFeedPosts();
-        updateUserOnlineStatus(activeUser, true);
-    } else {
-        if (authEl) {
-            authEl.classList.add('active');
-            authEl.style.display = 'flex';
-        }
-        if (mainApp) {
-            mainApp.style.display = 'none';
-        }
     }
-
-    window.addEventListener('beforeunload', () => {
-        const currentUser = localStorage.getItem('currentUsername');
-        if (currentUser) {
-            updateUserOnlineStatus(currentUser, false);
-        }
-    });
 });
 
 async function handleAuthLogin() {
     const usernameInput = document.getElementById('auth-username').value.trim();
     if (!usernameInput) {
-        alert("Please enter a username");
+        alert("Enter username");
         return;
     }
 
-    localStorage.setItem('currentUsername', usernameInput);
+    if (supabaseClient) {
+        const { data } = await supabaseClient.from('users').select('*').eq('username', usernameInput);
+        if (!data || data.length === 0) {
+            await supabaseClient.from('users').insert([{ username: usernameInput, bio: 'Digital Creator', avatar_url: '' }]);
+        }
+    }
+
     saveAccountToList(usernameInput);
-
-    const authEl = document.getElementById('auth-container');
-    if (authEl) {
-        authEl.classList.remove('active');
-        authEl.style.display = 'none';
-    }
-    
-    const mainApp = document.getElementById('main-app-content');
-    if (mainApp) {
-        mainApp.style.display = 'flex';
-    }
-
+    localStorage.setItem('currentUsername', usernameInput);
+    document.getElementById('auth-container').classList.remove('active');
+    document.getElementById('main-app-content').style.display = 'flex';
     switchView('insta-feed-container');
     loadUserData(usernameInput);
     loadFeedPosts();
-
-    if (supabaseClient) {
-        try {
-            const { data } = await supabaseClient.from('users').select('*').eq('username', usernameInput);
-            if (!data || data.length === 0) {
-                await supabaseClient.from('users').insert([{ username: usernameInput, bio: 'Digital Creator', avatar_url: '', is_online: true }]);
-            } else {
-                await supabaseClient.from('users').update({ is_online: true }).eq('username', usernameInput);
-            }
-        } catch (err) {
-            console.log("Supabase sync background error:", err);
-        }
-    }
-}
-
-async function updateUserOnlineStatus(username, status) {
-    if (!supabaseClient || !username) return;
-    await supabaseClient.from('users').update({ is_online: status, last_seen: new Date() }).eq('username', username);
 }
 
 function saveAccountToList(username) {
@@ -101,18 +56,17 @@ function openSwitchAccountModal() {
     const accounts = JSON.parse(localStorage.getItem('savedAccounts') || '[]');
     const current = localStorage.getItem('currentUsername');
 
-    if (!listEl) return;
     listEl.innerHTML = '';
     if (accounts.length === 0) {
         listEl.innerHTML = `<div style="color:#8e8e8e; font-size:13px; text-align:center;">No saved accounts</div>`;
     } else {
         accounts.forEach(acc => {
             const row = document.createElement('div');
-            row.style.cssText = "display:flex; align-items:center; justify-content:space-between; padding:8px 10px; background:#121212; border-radius:6px;";
+            row.style.cssText = "display:flex; align-items:center; justify-content:space-between; padding:8px 10px; background:#121212; border-radius:6px; margin-bottom:6px;";
             row.innerHTML = `
                 <div style="display:flex; align-items:center; gap:10px;">
                     <div class="avatar" style="width:30px; height:30px; font-size:12px;">${acc.charAt(0).toUpperCase()}</div>
-                    <span style="font-size:14px; font-weight:${acc === current ? 'bold' : 'normal'}">${acc}</span>
+                    <span style="font-size:14px; font-weight:${acc === current ? 'bold' : 'normal'}">${acc} ${acc === current ? '(Active)' : ''}</span>
                 </div>
                 ${acc !== current ? `<button onclick="switchToAccount('${acc}')" style="background:#0095f6; border:none; color:#fff; padding:4px 10px; border-radius:4px; font-size:12px; cursor:pointer;">Switch</button>` : ''}
             `;
@@ -127,13 +81,25 @@ function closeSwitchAccountModal() {
 }
 
 function switchToAccount(username) {
-    const prevUser = localStorage.getItem('currentUsername');
-    if (prevUser) updateUserOnlineStatus(prevUser, false);
     localStorage.setItem('currentUsername', username);
     location.reload();
 }
 
-let activeChatSubscription = null;
+async function addAndSwitchAccount() {
+    const inputAcc = document.getElementById('new-switch-username').value.trim();
+    if (!inputAcc) return;
+    
+    if (supabaseClient) {
+        const { data } = await supabaseClient.from('users').select('*').eq('username', inputAcc);
+        if (!data || data.length === 0) {
+            await supabaseClient.from('users').insert([{ username: inputAcc, bio: 'Digital Creator', avatar_url: '' }]);
+        }
+    }
+    
+    saveAccountToList(inputAcc);
+    localStorage.setItem('currentUsername', inputAcc);
+    location.reload();
+}
 
 window.switchView = function(viewId) {
     if (activeChatSubscription && viewId !== 'chatroom-container') {
@@ -149,8 +115,6 @@ window.switchView = function(viewId) {
     }
     if (viewId === 'insta-feed-container') loadFeedPosts();
     if (viewId === 'explore-container') handleUserSearch('');
-    if (viewId === 'chat-container') openChatList();
-    if (viewId === 'reels-container') loadReelsFeed();
 };
 
 async function loadUserData(username) {
@@ -168,7 +132,8 @@ async function loadUserData(username) {
 
             const avatars = [
                 document.getElementById('my-profile-avatar'), 
-                document.getElementById('nav-mini-avatar')
+                document.getElementById('nav-mini-avatar'),
+                document.getElementById('feed-story-avatar')
             ];
             
             avatars.forEach(el => {
@@ -196,9 +161,11 @@ async function loadUserData(username) {
     }
 }
 
+// Edit Profile Modal
 function openEditProfileModal() {
     const username = localStorage.getItem('currentUsername');
     const bio = document.getElementById('profile-bio-text').textContent;
+    
     document.getElementById('edit-username-input').value = username;
     document.getElementById('edit-bio-input').value = bio;
     document.getElementById('edit-profile-modal').style.display = 'flex';
@@ -213,7 +180,10 @@ async function saveProfileChanges() {
     const newUsername = document.getElementById('edit-username-input').value.trim();
     const newBio = document.getElementById('edit-bio-input').value.trim();
 
-    if (!newUsername) return;
+    if (!newUsername) {
+        alert("Username cannot be empty");
+        return;
+    }
 
     if (supabaseClient) {
         await supabaseClient.from('users').update({ username: newUsername, bio: newBio }).eq('username', oldUsername);
@@ -221,8 +191,10 @@ async function saveProfileChanges() {
 
     localStorage.setItem('currentUsername', newUsername);
     saveAccountToList(newUsername);
+    
     closeEditProfileModal();
     loadUserData(newUsername);
+    alert("Profile updated successfully!");
 }
 
 function handleProfilePicUpload(event) {
@@ -233,10 +205,13 @@ function handleProfilePicUpload(event) {
     reader.onload = async function(e) {
         const imgSrc = e.target.result;
         const username = localStorage.getItem('currentUsername');
+
         if (supabaseClient) {
             await supabaseClient.from('users').update({ avatar_url: imgSrc }).eq('username', username);
         }
+
         loadUserData(username);
+        alert("Profile picture updated!");
     };
     reader.readAsDataURL(file);
 }
@@ -246,12 +221,16 @@ async function submitNewPost() {
     const caption = document.getElementById('create-caption').value.trim();
     const username = localStorage.getItem('currentUsername');
 
-    if (!imgUrl) return;
+    if (!imgUrl) {
+        alert("Provide image URL");
+        return;
+    }
 
     if (supabaseClient) {
         await supabaseClient.from('posts').insert([{ username, image_url: imgUrl, caption }]);
     }
 
+    alert("Posted successfully!");
     document.getElementById('create-img-url').value = '';
     document.getElementById('create-caption').value = '';
     switchView('insta-feed-container');
@@ -297,7 +276,7 @@ async function loadFeedPosts() {
                     <i class="fa-regular fa-comment" style="margin-right: 16px;"></i>
                     <i class="fa-regular fa-paper-plane" onclick="openChatWith('${post.username}')"></i>
                 </div>
-                <i class="fa-regular fa-bookmark" onclick="toggleSavePost('${post.id}', this)"></i>
+                <i class="fa-regular fa-bookmark" onclick="this.classList.toggle('fa-regular'); this.classList.toggle('fa-solid');"></i>
             </div>
             <div class="post-details">
                 <p><b>${post.username}</b> ${post.caption || ''}</p>
@@ -307,63 +286,10 @@ async function loadFeedPosts() {
     });
 }
 
-async function toggleSavePost(postId, iconEl) {
-    const currentUser = localStorage.getItem('currentUsername');
-    if (!supabaseClient) return;
-
-    const isSaved = iconEl.classList.contains('fa-solid');
-    if (!isSaved) {
-        iconEl.classList.remove('fa-regular');
-        iconEl.classList.add('fa-solid');
-        await supabaseClient.from('saved_posts').insert([{ username: currentUser, post_id: postId }]);
-    } else {
-        iconEl.classList.remove('fa-solid');
-        iconEl.classList.add('fa-regular');
-        await supabaseClient.from('saved_posts').delete().eq('username', currentUser).eq('post_id', postId);
-    }
-}
-
-async function loadReelsFeed() {
-    const reelsContainer = document.getElementById('reels-container');
-    if (!reelsContainer) return;
-
-    let reels = [];
-    if (supabaseClient) {
-        const { data } = await supabaseClient.from('reels').select('*').order('created_at', { ascending: false });
-        if (data) reels = data;
-    }
-
-    reelsContainer.innerHTML = `
-        <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 16px; border-bottom:1px solid #262626; background:#000;">
-            <b>Reels</b>
-        </div>
-        <div id="reels-feed-list" style="flex:1; overflow-y:auto; scroll-snap-type: y mandatory;"></div>
-    `;
-
-    const feedList = document.getElementById('reels-feed-list');
-    if (reels.length === 0) {
-        feedList.innerHTML = `<div style="text-align:center; padding:50px; color:#8e8e8e;">No reels available yet</div>`;
-        return;
-    }
-
-    reels.forEach(reel => {
-        const videoCard = document.createElement('div');
-        videoCard.style.cssText = "height:100%; scroll-snap-align: start; position:relative; background:#000; display:flex; justify-content:center; align-items:center;";
-        videoCard.innerHTML = `
-            <video src="${reel.video_url}" loop autoplay muted style="width:100%; height:100%; object-fit:cover;"></video>
-            <div style="position:absolute; bottom:20px; left:15px; color:#fff; text-shadow:0 1px 3px rgba(0,0,0,0.8);">
-                <b>@${reel.username}</b>
-                <p style="font-size:13px; margin-top:5px;">${reel.caption || ''}</p>
-            </div>
-        `;
-        feedList.appendChild(videoCard);
-    });
-}
-
-// HOME / EXPLORE SCREEN SEARCH (Opens User Profile ID)
+// SEARCH & OTHER USER PROFILE LOGIC
 async function handleUserSearch(query) {
     const resultsList = document.getElementById('search-results-list');
-    if (!supabaseClient || !resultsList) return;
+    if (!supabaseClient) return;
 
     let queryBuilder = supabaseClient.from('users').select('username, bio, avatar_url');
     if (query.trim()) {
@@ -378,7 +304,7 @@ async function handleUserSearch(query) {
             const avatarStyle = user.avatar_url ? `background-image: url('${user.avatar_url}');` : '';
             const row = document.createElement('div');
             row.style.cssText = "display:flex; align-items:center; padding:10px 0; gap:12px; cursor:pointer; border-bottom:1px solid #1a1a1a;";
-            row.onclick = () => viewUserProfile(user.username); // Opens Profile ID
+            row.onclick = () => viewUserProfile(user.username);
             row.innerHTML = `
                 <div class="avatar" style="width:44px; height:44px; font-size:16px; ${avatarStyle}">${user.avatar_url ? '' : user.username.charAt(0).toUpperCase()}</div>
                 <div>
@@ -413,7 +339,9 @@ async function viewUserProfile(username) {
     if (supabaseClient) {
         const { data: userData } = await supabaseClient.from('users').select('bio, avatar_url').eq('username', username).single();
         if (userData) {
-            if (userData.bio) document.getElementById('other-profile-bio-text').textContent = userData.bio;
+            if (userData.bio) {
+                document.getElementById('other-profile-bio-text').textContent = userData.bio;
+            }
             if (userData.avatar_url) {
                 avatarEl.style.backgroundImage = `url('${userData.avatar_url}')`;
                 avatarEl.textContent = '';
@@ -481,52 +409,29 @@ async function loadUserPostsGrid(username, gridId) {
     }
 }
 
-// CHAT LIST WITH BUILT-IN SEARCH (Tapping opens Chat Room directly)
+// CHAT SECTION LOGIC
 async function openChatList() {
     switchView('chat-container');
-    const chatContainer = document.getElementById('chat-container');
-    
-    chatContainer.innerHTML = `
-        <div class="top-bar">
-            <i class="fa-solid fa-arrow-left" style="cursor:pointer;" onclick="switchView('insta-feed-container')"></i>
-            <b>Messages</b>
-            <div></div>
-        </div>
-        <div style="padding: 10px 16px; border-bottom: 1px solid #262626;">
-            <input type="text" id="chat-search-input" placeholder="Search messages or users..." oninput="filterChatUsers(this.value)" style="width:100%; background:#262626; border:none; padding:8px 12px; border-radius:8px; color:#fff; outline:none; font-size:13px;">
-        </div>
-        <div id="chat-users-list" style="flex:1; overflow-y:auto;"></div>
-    `;
-
-    await renderChatUsersList('');
-}
-
-async function renderChatUsersList(filterQuery) {
     const chatUsersList = document.getElementById('chat-users-list');
     const currentUser = localStorage.getItem('currentUsername');
-    if (!supabaseClient || !chatUsersList) return;
+    
+    if (!supabaseClient) return;
 
-    let queryBuilder = supabaseClient.from('users').select('username, bio, avatar_url, is_online').neq('username', currentUser);
-    if (filterQuery.trim()) {
-        queryBuilder = queryBuilder.ilike('username', `%${filterQuery}%`);
-    }
-
-    const { data } = await queryBuilder;
+    const { data } = await supabaseClient.from('users').select('username, bio, avatar_url').neq('username', currentUser);
     chatUsersList.innerHTML = '';
 
     if (data && data.length > 0) {
         data.forEach(user => {
             const avatarStyle = user.avatar_url ? `background-image: url('${user.avatar_url}');` : '';
-            const onlineDot = user.is_online ? `<span style="width:8px; height:8px; background:#31a24c; border-radius:50%; display:inline-block; margin-left:6px;"></span>` : '';
             const row = document.createElement('div');
             row.style.cssText = "display:flex; align-items:center; padding:10px 16px; gap:12px; cursor:pointer; justify-content:space-between;";
-            row.onclick = () => openChatWith(user.username); // Opens Chat Directly
+            row.onclick = () => openChatWith(user.username);
             row.innerHTML = `
                 <div style="display:flex; align-items:center; gap:12px;">
                     <div class="avatar" style="width:44px; height:44px; font-size:16px; ${avatarStyle}">${user.avatar_url ? '' : user.username.charAt(0).toUpperCase()}</div>
                     <div>
-                        <b style="font-size:14px; display:flex; align-items:center;">${user.username} ${onlineDot}</b>
-                        <span style="font-size:12px; color:#8e8e8e;">${user.is_online ? 'Active now' : 'Offline'}</span>
+                        <b style="font-size:14px; display:block;">${user.username}</b>
+                        <span style="font-size:12px; color:#8e8e8e;">${user.bio || 'Active user'}</span>
                     </div>
                 </div>
                 <i class="fa-solid fa-chevron-right" style="font-size:12px; color:#8e8e8e;"></i>
@@ -534,15 +439,12 @@ async function renderChatUsersList(filterQuery) {
             chatUsersList.appendChild(row);
         });
     } else {
-        chatUsersList.innerHTML = `<div style="text-align:center; padding:40px; color:#8e8e8e; font-size:13px;">No users found.</div>`;
+        chatUsersList.innerHTML = `<div style="text-align:center; padding:40px; color:#8e8e8e; font-size:13px;">No other users found to chat.</div>`;
     }
 }
 
-function filterChatUsers(query) {
-    renderChatUsersList(query);
-}
-
 let activeChatUser = '';
+let activeChatSubscription = null;
 
 async function openChatWith(username) {
     activeChatUser = username;
@@ -554,13 +456,10 @@ async function openChatWith(username) {
     avatarEl.textContent = username.charAt(0).toUpperCase();
 
     if (supabaseClient) {
-        const { data: userData } = await supabaseClient.from('users').select('avatar_url, is_online').eq('username', username).single();
-        if (userData) {
-            if (userData.avatar_url) {
-                avatarEl.style.backgroundImage = `url('${userData.avatar_url}')`;
-                avatarEl.textContent = '';
-            }
-            document.getElementById('chatroom-title').innerHTML = `${username} <span style="font-size:11px; color:${userData.is_online ? '#31a24c':'#8e8e8e'}; display:block;">${userData.is_online ? 'Online' : 'Offline'}</span>`;
+        const { data: userData } = await supabaseClient.from('users').select('avatar_url').eq('username', username).single();
+        if (userData && userData.avatar_url) {
+            avatarEl.style.backgroundImage = `url('${userData.avatar_url}')`;
+            avatarEl.textContent = '';
         }
     }
     
@@ -571,7 +470,6 @@ async function openChatWith(username) {
 async function loadChatMessages() {
     const msgContainer = document.getElementById('chatroom-messages');
     const currentUser = localStorage.getItem('currentUsername');
-    if (!msgContainer) return;
     msgContainer.innerHTML = '';
 
     if (!supabaseClient) return;
@@ -584,53 +482,36 @@ async function loadChatMessages() {
 
     if (data && data.length > 0) {
         data.forEach(msg => {
-            appendMessageBubble(msg, currentUser);
+            const isMe = msg.sender === currentUser;
+            const bubble = document.createElement('div');
+            bubble.style.cssText = `max-width: 70%; padding: 10px 14px; border-radius: 14px; font-size: 14px; word-break: break-word; align-self: ${isMe ? 'flex-end' : 'flex-start'}; background: ${isMe ? '#0095f6' : '#262626'}; color: #fff;`;
+            bubble.textContent = msg.message;
+            msgContainer.appendChild(bubble);
         });
     } else {
-        msgContainer.innerHTML = `<div style="text-align:center; color:#8e8e8e; font-size:13px; margin-top:20px;">No messages yet</div>`;
+        msgContainer.innerHTML = `<div style="text-align:center; color:#8e8e8e; font-size:13px; margin-top:20px;">No messages yet. Say hello!</div>`;
     }
     msgContainer.scrollTop = msgContainer.scrollHeight;
 }
 
-function appendMessageBubble(msg, currentUser) {
-    const msgContainer = document.getElementById('chatroom-messages');
-    if (!msgContainer) return;
-    const placeholder = msgContainer.querySelector('div[style*="text-align:center"]');
-    if (placeholder) placeholder.remove();
-
-    const isMe = msg.sender === currentUser;
-    const bubble = document.createElement('div');
-    bubble.style.cssText = `max-width: 70%; padding: 10px 14px; border-radius: 14px; font-size: 14px; word-break: break-word; align-self: ${isMe ? 'flex-end' : 'flex-start'}; background: ${isMe ? '#0095f6' : '#262626'}; color: #fff; display:flex; flex-direction:column; gap:4px;`;
-    
-    let contentHtml = '';
-    if (msg.type === 'image') {
-        contentHtml = `<img src="${msg.message}" style="max-width:100%; border-radius:8px;">`;
-    } else if (msg.type === 'audio') {
-        contentHtml = `<audio controls src="${msg.message}" style="height:35px; width:200px;"></audio>`;
-    } else {
-        contentHtml = `<span>${msg.message}</span>`;
-    }
-
-    const seenTick = isMe ? `<span style="font-size:10px; align-self:flex-end; color:${msg.is_seen ? '#53bdeb' : '#a8a8a8'};">${msg.is_seen ? 'Seen' : 'Sent'}</span>` : '';
-
-    bubble.innerHTML = `${contentHtml} ${seenTick}`;
-    msgContainer.appendChild(bubble);
-    msgContainer.scrollTop = msgContainer.scrollHeight;
-}
-
-// REAL-TIME CHAT SYNC FIX
 function setupRealtimeChat() {
     if (!supabaseClient) return;
     if (activeChatSubscription) {
         supabaseClient.removeChannel(activeChatSubscription);
     }
 
+    // Unique channel name for each chat session to avoid caching conflicts
     const channelName = `public:messages_${Date.now()}`;
+
     activeChatSubscription = supabaseClient
         .channel(channelName)
         .on(
             'postgres_changes',
-            { event: 'INSERT', schema: 'public', table: 'messages' },
+            {
+                event: 'INSERT',
+                schema: 'public',
+                table: 'messages'
+            },
             payload => {
                 const newMsg = payload.new;
                 const currentUser = localStorage.getItem('currentUsername');
@@ -639,104 +520,49 @@ function setupRealtimeChat() {
                     (newMsg.sender === currentUser && newMsg.receiver === activeChatUser) ||
                     (newMsg.sender === activeChatUser && newMsg.receiver === currentUser)
                 ) {
-                    appendMessageBubble(newMsg, currentUser);
-                    if (newMsg.receiver === currentUser) {
-                        supabaseClient.from('messages').update({ is_seen: true }).eq('id', newMsg.id);
-                    }
+                    appendMessageToDOM(newMsg);
                 }
             }
         )
-        .subscribe();
+        .subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+                console.log("Realtime connected successfully!");
+            }
+        });
+}
+
+function appendMessageToDOM(msg) {
+    const msgContainer = document.getElementById('chatroom-messages');
+    const currentUser = localStorage.getItem('currentUsername');
+    
+    const placeholder = msgContainer.querySelector('div[style*="text-align:center"]');
+    if (placeholder) placeholder.remove();
+
+    const isMe = msg.sender === currentUser;
+    const bubble = document.createElement('div');
+    bubble.style.cssText = `max-width: 70%; padding: 10px 14px; border-radius: 14px; font-size: 14px; word-break: break-word; align-self: ${isMe ? 'flex-end' : 'flex-start'}; background: ${isMe ? '#0095f6' : '#262626'}; color: #fff;`;
+    bubble.textContent = msg.message;
+    msgContainer.appendChild(bubble);
+    msgContainer.scrollTop = msgContainer.scrollHeight;
 }
 
 async function sendChatMessage() {
     const inputEl = document.getElementById('chatroom-input');
-    if (!inputEl) return;
     const text = inputEl.value.trim();
     const currentUser = localStorage.getItem('currentUsername');
 
     if (!text || !supabaseClient) return;
 
     inputEl.value = '';
-    const { data, error } = await supabaseClient.from('messages').insert([
-        { sender: currentUser, receiver: activeChatUser, message: text, type: 'text', is_seen: false }
-    ]).select();
+    const { error } = await supabaseClient.from('messages').insert([
+        { sender: currentUser, receiver: activeChatUser, message: text }
+    ]);
 
-    if (!error && data && data.length > 0) {
-        appendMessageBubble(data[0], currentUser);
+    if (error) {
+        alert("Failed to send message.");
     }
-}
-
-async function sendChatPhoto(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async function(e) {
-        const imgSrc = e.target.result;
-        const currentUser = localStorage.getItem('currentUsername');
-        const { data, error } = await supabaseClient.from('messages').insert([
-            { sender: currentUser, receiver: activeChatUser, message: imgSrc, type: 'image', is_seen: false }
-        ]).select();
-
-        if (!error && data && data.length > 0) {
-            appendMessageBubble(data[0], currentUser);
-        }
-    };
-    reader.readAsDataURL(file);
-}
-
-// INSTAGRAM-STYLE CALLING UI OVERLAY
-function startAudioCall() {
-    showCallUI('audio', activeChatUser);
-}
-
-function startVideoCall() {
-    showCallUI('video', activeChatUser);
-}
-
-function showCallUI(type, targetUser) {
-    let callOverlay = document.getElementById('instagram-call-overlay');
-    if (!callOverlay) {
-        callOverlay = document.createElement('div');
-        callOverlay.id = 'instagram-call-overlay';
-        callOverlay.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:#1a1a1a; z-index:9999; display:flex; flex-direction:column; justify-content:space-between; align-items:center; padding:50px 20px; color:#fff;";
-        document.body.appendChild(callOverlay);
-    }
-
-    callOverlay.innerHTML = `
-        <div style="display:flex; flex-direction:column; align-items:center; gap:15px; margin-top:40px;">
-            <div class="avatar" style="width:90px; height:90px; font-size:35px; background-color:#363636;">${targetUser.charAt(0).toUpperCase()}</div>
-            <h2 style="font-size:22px; font-weight:500;">${targetUser}</h2>
-            <p style="font-size:14px; color:#a8a8a8;" id="call-status-text">Ringing...</p>
-        </div>
-        <div style="display:flex; gap:30px; margin-bottom:50px; align-items:center;">
-            <button onclick="toggleCallMute(this)" style="width:55px; height:55px; border-radius:50%; background:#262626; border:none; color:#fff; font-size:20px; cursor:pointer;"><i class="fa-solid fa-microphone"></i></button>
-            <button onclick="endCallScreen()" style="width:65px; height:65px; border-radius:50%; background:#ed4956; border:none; color:#fff; font-size:24px; cursor:pointer;"><i class="fa-solid fa-phone-slash"></i></button>
-            ${type === 'video' ? `<button onclick="toggleCamera(this)" style="width:55px; height:55px; border-radius:50%; background:#262626; border:none; color:#fff; font-size:20px; cursor:pointer;"><i class="fa-solid fa-video"></i></button>` : ''}
-        </div>
-    `;
-    callOverlay.style.display = 'flex';
-}
-
-function endCallScreen() {
-    const callOverlay = document.getElementById('instagram-call-overlay');
-    if (callOverlay) {
-        callOverlay.style.display = 'none';
-    }
-}
-
-function toggleCallMute(btn) {
-    const isMuted = btn.style.background === 'rgb(54, 54, 54)';
-    btn.style.background = isMuted ? '#fff' : '#262626';
-    btn.style.color = isMuted ? '#000' : '#fff';
-}
-
-function toggleCamera(btn) {
-    const isOff = btn.style.background === 'rgb(54, 54, 54)';
-    btn.style.background = isOff ? '#fff' : '#262626';
-    btn.style.color = isOff ? '#000' : '#fff';
 }
 
 function openChatWithUser() {
     openChatWith(viewingTargetUser);
-        }
+              }
