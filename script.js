@@ -337,7 +337,6 @@ async function viewUserProfile(username) {
         const { count: fgCount } = await supabaseClient.from('follows').select('*', { count: 'exact', head: true }).eq('follower', username);
         document.getElementById('other-profile-following-count').textContent = fgCount || 0;
 
-        // Check if current user follows this user
         const { data: followData } = await supabaseClient.from('follows').select('*').eq('follower', currentUser).eq('following', username);
         const followBtn = document.getElementById('other-follow-btn');
         if (followData && followData.length > 0) {
@@ -369,7 +368,6 @@ async function toggleFollowUser() {
         followBtn.style.background = '#0095f6';
     }
     
-    // Refresh followers count
     const { count: fCount } = await supabaseClient.from('follows').select('*', { count: 'exact', head: true }).eq('following', viewingTargetUser);
     document.getElementById('other-profile-followers-count').textContent = fCount || 0;
 }
@@ -420,25 +418,67 @@ async function openChatList() {
             chatUsersList.appendChild(row);
         });
     } else {
-        chatUsersList.innerHTML = `<div style="text-align:center; padding:40px; color:#8e8e8e; font-size:13px;">No other users found to chat. Tell your friends to login!</div>`;
+        chatUsersList.innerHTML = `<div style="text-align:center; padding:40px; color:#8e8e8e; font-size:13px;">No other users found to chat.</div>`;
     }
 }
 
-function openChatWith(username) {
-    document.getElementById('chat-header-title').textContent = username;
-    const chatUsersList = document.getElementById('chat-users-list');
+let activeChatUser = '';
+
+async function openChatWith(username) {
+    activeChatUser = username;
+    switchView('chatroom-container');
+    document.getElementById('chatroom-title').textContent = username;
+    document.getElementById('chatroom-avatar').textContent = username.charAt(0).toUpperCase();
     
-    chatUsersList.innerHTML = `
-        <div style="padding: 16px; display: flex; flex-direction: column; height: calc(100vh - 160px); justify-content: space-between;">
-            <div style="color: #8e8e8e; text-align: center; font-size: 13px; margin-top: 20px;">Messages with ${username} are secure. Type below to send greeting.</div>
-            <div style="display: flex; gap: 8px;">
-                <input type="text" id="chat-msg-input" placeholder="Message..." class="insta-input" style="margin:0;">
-                <button onclick="alert('Message sent to ${username}!')" style="background:#0095f6; border:none; color:#fff; padding:0 16px; border-radius:6px; font-weight:600; cursor:pointer;">Send</button>
-            </div>
-        </div>
-    `;
+    await loadChatMessages();
+}
+
+async function loadChatMessages() {
+    const msgContainer = document.getElementById('chatroom-messages');
+    const currentUser = localStorage.getItem('currentUsername');
+    msgContainer.innerHTML = '';
+
+    if (!supabaseClient) return;
+
+    const { data, error } = await supabaseClient
+        .from('messages')
+        .select('*')
+        .or(`and(sender.eq.${currentUser},receiver.eq.${activeChatUser}),and(sender.eq.${activeChatUser},receiver.eq.${currentUser})`)
+        .order('created_at', { ascending: true });
+
+    if (data && data.length > 0) {
+        data.forEach(msg => {
+            const isMe = msg.sender === currentUser;
+            const bubble = document.createElement('div');
+            bubble.style.cssText = `max-width: 70%; padding: 10px 14px; border-radius: 14px; font-size: 14px; word-break: break-word; align-self: ${isMe ? 'flex-end' : 'flex-start'}; background: ${isMe ? '#0095f6' : '#262626'}; color: #fff;`;
+            bubble.textContent = msg.message;
+            msgContainer.appendChild(bubble);
+        });
+    } else {
+        msgContainer.innerHTML = `<div style="text-align:center; color:#8e8e8e; font-size:13px; margin-top:20px;">No messages yet. Say hello!</div>`;
+    }
+    msgContainer.scrollTop = msgContainer.scrollHeight;
+}
+
+async function sendChatMessage() {
+    const inputEl = document.getElementById('chatroom-input');
+    const text = inputEl.value.trim();
+    const currentUser = localStorage.getItem('currentUsername');
+
+    if (!text || !supabaseClient) return;
+
+    const { error } = await supabaseClient.from('messages').insert([
+        { sender: currentUser, receiver: activeChatUser, message: text }
+    ]);
+
+    if (!error) {
+        inputEl.value = '';
+        await loadChatMessages();
+    } else {
+        alert("Failed to send message. Make sure 'messages' table exists in Supabase.");
+    }
 }
 
 function openChatWithUser() {
     openChatWith(viewingTargetUser);
-                }
+}
