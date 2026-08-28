@@ -96,12 +96,12 @@
             </div>
         </div>
 
-    <!-- 5. PROFILE VIEW (Instagram Style) -->
+    <!-- 5. PROFILE VIEW -->
 <div id="profile-container" class="app-view">
     <div class="top-header">
         <h2 id="profile-display-name">username</h2>
         <div style="display: flex; gap: 15px; align-items: center; font-size: 20px;">
-            <i class="fa-solid fa-gear" onclick="alert('Settings & Privacy')" style="cursor:pointer; font-size: 18px;"></i>
+            <i class="fa-solid fa-gear" onclick="alert('Settings')" style="cursor:pointer; font-size: 18px;"></i>
             <i class="fa-solid fa-right-from-bracket" onclick="handleLogout()" style="cursor:pointer; color:#ed4956; font-size: 18px;"></i>
         </div>
     </div>
@@ -109,18 +109,21 @@
     <!-- Profile Header Info -->
     <div style="padding: 15px 16px;">
         <div style="display: flex; align-items: center; justify-content: space-between;">
-            <div id="my-profile-avatar" class="avatar" style="width: 80px; height: 80px; font-size: 30px;">U</div>
+            <!-- Profile Picture Clickable for Upload/URL -->
+            <div id="my-profile-avatar" class="avatar" style="width: 80px; height: 80px; font-size: 30px; cursor: pointer;" onclick="changeProfilePicture()" title="Click to change profile picture">
+                U
+            </div>
             <div style="display: flex; gap: 20px; text-align: center; flex: 1; justify-content: space-around; margin-left: 15px;">
                 <div>
                     <b id="profile-posts-count" style="font-size: 16px;">0</b>
                     <p style="font-size: 12px; color: #aaa;">Posts</p>
                 </div>
-                <div>
-                    <b style="font-size: 16px;">142</b>
+                <div id="followers-tab-btn" style="cursor: pointer;">
+                    <b id="profile-followers-count" style="font-size: 16px;">0</b>
                     <p style="font-size: 12px; color: #aaa;">Followers</p>
                 </div>
-                <div>
-                    <b style="font-size: 16px;">85</b>
+                <div id="following-tab-btn" style="cursor: pointer;">
+                    <b id="profile-following-count" style="font-size: 16px;">0</b>
                     <p style="font-size: 12px; color: #aaa;">Following</p>
                 </div>
             </div>
@@ -129,25 +132,25 @@
         <!-- Bio Section -->
         <div style="margin-top: 12px;">
             <b id="my-profile-username" style="font-size: 14px;">username</b>
-            <p id="profile-bio-text" style="font-size: 13px; color: #ddd; margin-top: 2px;">Building InstaTelegram 🚀 | CSE Student 💻</p>
+            <p id="profile-bio-text" style="font-size: 13px; color: #ddd; margin-top: 2px;">Building InstaTelegram 🚀</p>
         </div>
 
-        <!-- Profile Action Buttons -->
+        <!-- Action Buttons -->
         <div style="display: flex; gap: 8px; margin-top: 15px;">
             <button onclick="editProfileBio()" style="flex: 1; background: #262626; color: #fff; border: none; padding: 7px; border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer;">Edit Profile</button>
-            <button onclick="alert('Profile Link Copied!')" style="flex: 1; background: #262626; color: #fff; border: none; padding: 7px; border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer;">Share Profile</button>
+            <button onclick="alert('Profile link copied!')" style="flex: 1; background: #262626; color: #fff; border: none; padding: 7px; border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer;">Share Profile</button>
         </div>
     </div>
 
-    <!-- Profile Posts Grid Tabs -->
+    <!-- Profile Tabs -->
     <div style="display: flex; border-top: 1px solid #262626; border-bottom: 1px solid #262626; margin-top: 10px;">
-        <div style="flex: 1; text-align: center; padding: 10px; border-bottom: 1.5px solid #fff; font-size: 16px;"><i class="fa-solid fa-table-cells"></i></div>
-        <div style="flex: 1; text-align: center; padding: 10px; color: #777; font-size: 16px;"><i class="fa-solid fa-bookmark"></i></div>
+        <div id="tab-posts-btn" onclick="switchProfileTab('posts')" style="flex: 1; text-align: center; padding: 10px; border-bottom: 2px solid #fff; font-size: 16px; cursor: pointer;"><i class="fa-solid fa-table-cells"></i></div>
+        <div id="tab-saved-btn" onclick="switchProfileTab('saved')" style="flex: 1; text-align: center; padding: 10px; color: #777; font-size: 16px; cursor: pointer;"><i class="fa-solid fa-bookmark"></i></div>
     </div>
 
-    <!-- User Grid Posts Area -->
+    <!-- Grid Area -->
     <div id="my-profile-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; background: #000; flex: 1;">
-        <!-- User posts will load here in grid format -->
+        <!-- Posts Grid -->
     </div>
 </div>
 
