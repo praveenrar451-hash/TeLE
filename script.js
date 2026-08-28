@@ -1659,3 +1659,107 @@ window.addEventListener('DOMContentLoaded', () => {
         }
     }, 1500);
 });
+// ==========================================
+// FINAL CHAT SPEED & POST DP FIX PATCH
+// ==========================================
+console.log("Chat Speed & Post DP Patch Loaded!");
+
+// 1. CHAT USERS INSTANT CACHING & FAST LOAD FIX
+if (typeof fetchTelegramChats === 'function' || window.supabaseClient) {
+    // Purane chat load function ko override karke instant local cache enable karte hain
+    const originalFetchChats = window.fetchTelegramChats || window.loadChatUsers;
+    
+    window.fetchTelegramChats = async function() {
+        const chatListArea = document.getElementById('chat-list-container') || document.getElementById('chat-users-list') || document.querySelector('.chat-list');
+        if (!chatListArea) return;
+
+        // Step 1: Agar localStorage mein pehle se chat users save hain, toh bina ek second ruke turant dikhao
+        const cachedUsers = localStorage.getItem('insta_cached_chat_users');
+        if (cachedUsers && chatListArea.children.length === 0) {
+            try {
+                const users = JSON.parse(cachedUsers);
+                renderChatUsersToDOM(users, chatListArea);
+            } catch(e) {}
+        }
+
+        // Step 2: Background mein fresh users fetch karke list aur cache update karo
+        try {
+            const { data: users, error } = await supabaseClient.from('users').select('username, avatar_url');
+            if (!error && users) {
+                localStorage.setItem('insta_cached_chat_users', JSON.stringify(users));
+                renderChatUsersToDOM(users, chatListArea);
+            }
+        } catch (err) {
+            console.error("Background chat fetch error:", err);
+        }
+    };
+}
+
+function renderChatUsersToDOM(users, container) {
+    if (!users || users.length === 0) return;
+    const myName = localStorage.getItem('currentUsername');
+    
+    // Agar container mein pehle se user list nahi hai ya khali hai tabhi render karo
+    if (container.children.length === 0 || container.innerHTML.includes('Loading')) {
+        container.innerHTML = '';
+        users.forEach(user => {
+            if (user.username === myName) return; // Khud ko chat list mein mat dikhao
+            
+            const userItem = document.createElement('div');
+            userItem.style.cssText = "display:flex; align-items:center; gap:12px; padding:10px 15px; cursor:pointer; border-bottom:1px solid #1a1a1a;";
+            userItem.innerHTML = `
+                <div style="width:40px; height:40px; background:#444; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:15px; overflow:hidden; ${user.avatar_url ? `background-image:url(${user.avatar_url}); background-size:cover;` : ''}">${!user.avatar_url ? user.username.charAt(0).toUpperCase() : ''}</div>
+                <div>
+                    <b style="font-size:14px; color:#fff;">${user.username}</b>
+                    <p style="font-size:12px; color:#888; margin:0;">Tap to chat</p>
+                </div>
+            `;
+            userItem.onclick = () => {
+                if (typeof openChatWindow === 'function') {
+                    openChatWindow(user.username);
+                }
+            };
+            container.appendChild(userItem);
+        });
+    }
+}
+
+
+// 2. POST DP FIX (Home page par posts ke upar user ki DP dikhane ke liye)
+// Yeh patch ensure karega ki agar database mein avatar url hai, toh post header par DP zaroor dikhe
+window.addEventListener('DOMContentLoaded', () => {
+    setTimeout(async () => {
+        if (!window.supabaseClient) return;
+        
+        // Sabhi users ke avatars ka map bana lo
+        const { data: usersData } = await supabaseClient.from('users').select('username, avatar_url');
+        if (!usersData) return;
+        
+        const avatarMap = {};
+        usersData.forEach(u => {
+            if (u.avatar_url) avatarMap[u.username] = u.avatar_url;
+        });
+
+        // Feed ke saare post headers check karke DP insert/update karo
+        const feedArea = document.getElementById('feed-posts-area');
+        if (feedArea) {
+            const observer = new MutationObserver(() => {
+                const postHeaders = feedArea.querySelectorAll('.post-user-header');
+                postHeaders.forEach(header => {
+                    const usernameElem = header.querySelector('b');
+                    if (usernameElem) {
+                        const username = usernameElem.textContent.trim();
+                        const avatarDiv = header.querySelector('div');
+                        if (avatarDiv && avatarMap[username]) {
+                            avatarDiv.style.backgroundImage = `url(${avatarMap[username]})`;
+                            avatarDiv.style.backgroundSize = 'cover';
+                            avatarDiv.style.backgroundPosition = 'center';
+                            avatarDiv.textContent = ''; // Text hata do agar image lag gayi hai
+                        }
+                    }
+                });
+            });
+            observer.observe(feedArea, { childList: true, subtree: true });
+        }
+    }, 1500);
+});
