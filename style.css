@@ -1,49 +1,25 @@
-/* Google Font for Insta Logo */
 @import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&display=swap');
 
-* { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, sans-serif; }
-body { background-color: #fafafa; display: flex; justify-content: center; height: 100vh; overflow: hidden; }
+* { margin: 0; padding: 0; box-sizing: border-box; font-family: sans-serif; }
+body { background: #fafafa; display: flex; justify-content: center; }
 
-#app-wrapper { width: 100%; max-width: 420px; background: #fff; position: relative; border: 1px solid #dbdbdb; height: 100dvh; display: flex; flex-direction: column; }
+#app-wrapper { width: 100%; max-width: 400px; height: 100vh; position: relative; background: #fff; border: 1px solid #dbdbdb; }
 
+/* Views control */
 .app-view { display: none; width: 100%; height: 100%; flex-direction: column; background: #fff; }
-.app-view.active { display: flex; }
+.app-view.active { display: flex !important; }
 
-/* --- LOGIN PAGE STYLING --- */
-#login-view { background-color: #fafafa; justify-content: center; align-items: center; padding: 20px; }
-.login-main-card { background: #fff; border: 1px solid #dbdbdb; width: 100%; padding: 40px 30px; text-align: center; }
-.signup-footer-card { background: #fff; border: 1px solid #dbdbdb; width: 100%; padding: 20px; margin-top: 10px; text-align: center; font-size: 14px; }
+/* Login Design */
+#view-login { justify-content: center; align-items: center; padding: 20px; }
+.login-card { width: 100%; padding: 40px 30px; border: 1px solid #dbdbdb; text-align: center; background: white; }
+.logo { font-family: 'Dancing Script', cursive; font-size: 40px; margin-bottom: 30px; }
+.logo-small { font-family: 'Dancing Script', cursive; font-size: 24px; }
 
-.insta-logo { font-family: 'Dancing Script', cursive; font-size: 42px; margin-bottom: 30px; }
-.insta-logo-small { font-family: 'Dancing Script', cursive; font-size: 24px; }
+input { width: 100%; padding: 10px; margin-bottom: 10px; background: #fafafa; border: 1px solid #dbdbdb; border-radius: 4px; outline: none; }
+#btn-login { width: 100%; padding: 10px; background: #0095f6; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
 
-.login-form input { width: 100%; padding: 10px; background: #fafafa; border: 1px solid #dbdbdb; border-radius: 3px; margin-bottom: 8px; font-size: 12px; outline: none; }
-#login-btn { width: 100%; background: #0095f6; color: #fff; border: none; padding: 8px; border-radius: 8px; font-weight: 600; cursor: pointer; margin: 10px 0; }
-.or-divider { display: flex; align-items: center; margin: 15px 0; }
-.line { flex: 1; height: 1px; background: #dbdbdb; }
-.or-text { padding: 0 15px; color: #8e8e8e; font-size: 13px; font-weight: 600; }
-.fb-login-btn { background: none; border: none; color: #385185; font-weight: 600; cursor: pointer; }
-.error-msg { color: #ed4956; font-size: 13px; margin-top: 15px; }
+/* Navbar */
+#nav-bar { position: absolute; bottom: 0; width: 100%; height: 50px; border-top: 1px solid #dbdbdb; display: flex; justify-content: space-around; align-items: center; background: white; }
 
-/* --- APP COMPONENTS --- */
-.app-header, .tele-header { height: 50px; border-bottom: 1px solid #dbdbdb; display: flex; justify-content: space-between; align-items: center; padding: 0 15px; background: #fff; }
-.header-icon { background: none; border: none; font-size: 20px; cursor: pointer; margin-left: 15px; }
-
-.content-scroll { flex: 1; overflow-y: auto; padding-bottom: 60px; scrollbar-width: none; }
-.content-scroll::-webkit-scrollbar { display: none; }
-
-/* Bottom Nav */
-#bottom-nav { position: absolute; bottom: 0; width: 100%; height: 50px; background: #fff; border-top: 1px solid #dbdbdb; display: flex; justify-content: space-around; align-items: center; z-index: 100; }
-#bottom-nav i { font-size: 20px; color: #262626; cursor: pointer; }
-#bottom-nav i.active { color: #000; }
-
-/* Reels Snap */
-.reels-container { flex: 1; overflow-y: scroll; scroll-snap-type: y mandatory; background: #000; }
-.reel-item { height: 100%; width: 100%; scroll-snap-align: start; position: relative; }
-
-/* Grids */
-.image-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; }
-.image-grid img { width: 100%; aspect-ratio: 1; object-fit: cover; }
-
-/* Telegram Style */
-.tele-search input { width: 90%; margin: 10px 5%; padding: 8px; border-radius: 8px; border: none; background: #efefef; outline: none; }
+.header { padding: 10px 15px; border-bottom: 1px solid #dbdbdb; display: flex; justify-content: space-between; align-items: center; }
+#btn-logout { background: none; border: none; color: #0095f6; cursor: pointer; font-weight: bold; }
