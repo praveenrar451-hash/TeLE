@@ -1901,89 +1901,88 @@ function updateBlueTicksUI(seenByUser) {
         });
     }
                         }
-// Instagram Style Typing Indicator Module - Paste this at the very end of your script.js
+// Duplicate Message Fix Module - Paste this at the very end of your script.js
 
-// 1. Instagram style ke liye HTML/CSS inject karne ka function
-function ensureInstaTypingElement() {
-    let container = document.getElementById('insta-typing-indicator-box');
-    if (!container) {
-        // Chat messages container ko dhundhein jahan messages aate hain
-        const msgContainer = document.querySelector('.chat-messages, #chatroom-messages, .messages-box');
-        if (msgContainer) {
-            container = document.createElement('div');
-            container.id = 'insta-typing-indicator-box';
-            container.style.cssText = "display: none; align-items: center; gap: 4px; padding: 8px 12px; background: #262626; border-radius: 18px; width: fit-content; margin: 10px 0 10px 15px;";
-            container.innerHTML = `
-                <div class="insta-dot" style="width: 6px; height: 6px; background: #a8a8a8; border-radius: 50%; animation: instaBlink 1.4s infinite ease-in-out both; animation-delay: -0.32s;"></div>
-                <div class="insta-dot" style="width: 6px; height: 6px; background: #a8a8a8; border-radius: 50%; animation: instaBlink 1.4s infinite ease-in-out both; animation-delay: -0.16s;"></div>
-                <div class="insta-dot" style="width: 6px; height: 6px; background: #a8a8a8; border-radius: 50%; animation: instaBlink 1.4s infinite ease-in-out both;"></div>
-            `;
-            
-            // CSS Animation inject karna agar pehle se na ho
-            if (!document.getElementById('insta-typing-keyframes')) {
-                const style = document.createElement('style');
-                style.id = 'insta-typing-keyframes';
-                style.innerHTML = `
-                    @keyframes instaBlink {
-                        0%, 80%, 100% { transform: scale(0); opacity: 0.4; }
-                        40% { transform: scale(1.0); opacity: 1; }
-                    }
-                `;
-                document.head.appendChild(style);
+// 1. Double render ko prevent karne ke liye duplicate check function
+function appendUniqueMessageBubble(msg, currentUser) {
+    const msgContainer = document.getElementById('chatroom-messages');
+    if (!msgContainer) return;
+    
+    // Check if message with same text/timestamp/content already exists on screen
+    const existingMessages = msgContainer.querySelectorAll('[data-msg-id]');
+    let isAlreadyShown = false;
+    
+    if (msg.id) {
+        existingMessages.forEach(el => {
+            if (el.getAttribute('data-msg-id') == msg.id) {
+                isAlreadyShown = true;
             }
-            
-            msgContainer.appendChild(container);
-        }
-    }
-    return container;
-}
-
-let instaTypingTimer = null;
-
-// 2. Jab aap khud type karein toh trigger karne ke liye (Aapke input box ke oninput ya onkeyup me ye function daal sakte hain)
-function triggerInstaTyping() {
-    if (typeof activeChatUser === 'undefined' || !activeChatUser) return;
-    const currentUser = localStorage.getItem('currentUsername');
-    if (!currentUser || typeof mainChatChannel === 'undefined' || !mainChatChannel) return;
-
-    mainChatChannel.send({
-        type: 'broadcast',
-        event: 'insta-typing-broadcast',
-        payload: { sender: currentUser, receiver: activeChatUser, isTyping: true }
-    });
-
-    clearTimeout(instaTypingTimer);
-    instaTypingTimer = setTimeout(() => {
-        mainChatChannel.send({
-            type: 'broadcast',
-            event: 'insta-typing-broadcast',
-            payload: { sender: currentUser, receiver: activeChatUser, isTyping: false }
         });
-    }, 1200);
-}
-
-// 3. Jab samne wala type kare toh Instagram ki tarah bubble dikhane ke liye
-function renderInstaTypingIndicator(sender, isTyping) {
-    if (typeof activeChatUser !== 'undefined' && activeChatUser === sender) {
-        const container = ensureInstaTypingElement();
-        if (container) {
-            container.style.display = isTyping ? 'flex' : 'none';
-            
-            // Scroll down so indicator is visible
-            const msgContainer = document.querySelector('.chat-messages, #chatroom-messages, .messages-box');
-            if (msgContainer && isTyping) {
-                msgContainer.scrollTop = msgContainer.scrollHeight;
-            }
-        }
     }
+
+    if (isAlreadyShown) return;
+
+    const placeholder = msgContainer.querySelector('div[style*="text-align:center"]');
+    if (placeholder) placeholder.remove();
+
+    const isMe = msg.sender === currentUser;
+    const bubble = document.createElement('div');
+    if (msg.id) bubble.setAttribute('data-msg-id', msg.id);
+    
+    bubble.style.cssText = `max-width: 70%; padding: 10px 14px; border-radius: 14px; font-size: 14px; word-break: break-word; align-self: ${isMe ? 'flex-end' : 'flex-start'}; background: ${isMe ? '#0095f6' : '#262626'}; color: #fff; display:flex; flex-direction:column; gap:4px; margin-bottom: 6px;`;
+    
+    let contentHtml = '';
+    if (msg.type === 'image') {
+        contentHtml = `<img src="${msg.message}" style="max-width:100%; border-radius:8px;">`;
+    } else if (msg.type === 'audio') {
+        contentHtml = `<audio controls src="${msg.message}" style="height:35px; width:200px;"></audio>`;
+    } else {
+        contentHtml = `<span>${msg.message}</span>`;
+    }
+
+    bubble.innerHTML = contentHtml;
+    msgContainer.appendChild(bubble);
+    msgContainer.scrollTop = msgContainer.scrollHeight;
 }
 
-// Global listener hook agar channel pehle se bana hai
-if (typeof mainChatChannel !== 'undefined' && mainChatChannel) {
-    mainChatChannel.on('broadcast', { event: 'insta-typing-broadcast' }, ({ payload }) => {
-        const currentUser = localStorage.getItem('currentUsername');
-        if (payload.receiver === currentUser) {
-            renderInstaTypingIndicator(payload.sender, payload.isTyping);
+// 2. Realtime listener ko clean up karke single instance rakhne ka patch
+if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+    // Purane duplicate subscriptions se bachne ke liye custom wrapper
+    const originalSetupRealtimeChat = window.setupRealtimeChat;
+    
+    window.setupRealtimeChat = function() {
+        if (typeof activeChatSubscription !== 'undefined' && activeChatSubscription) {
+            supabaseClient.removeChannel(activeChatSubscription);
+            activeChatSubscription = null;
         }
-    });
+
+        const currentUser = localStorage.getItem('currentUsername');
+        const channelName = `public:clean_messages_${Date.now()}`;
+        
+        window.activeChatSubscription = supabaseClient
+            .channel(channelName)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'messages'
+                },
+                payload => {
+                    const newMsg = payload.new;
+                    // Agar message khud ka hai aur screen par local append ho chuka hai, toh dobara mat dikhao
+                    if (newMsg.sender === currentUser) {
+                        return; // Kyunki send function me humne already append kar diya hai
+                    }
+                    
+                    if (
+                        (newMsg.sender === currentUser && newMsg.receiver === activeChatUser) ||
+                        (newMsg.sender === activeChatUser && newMsg.receiver === currentUser)
+                    ) {
+                        appendUniqueMessageBubble(newMsg, currentUser);
+                    }
+                }
+            )
+            .subscribe();
+    };
 }
