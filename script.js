@@ -993,3 +993,265 @@ function endCallScreen(sendSignal = true) {
         overlay.remove();
     }
         }
+// ==========================================
+// WHATSAPP STYLE CALLING MODULE (END OF FILE)
+// ==========================================
+
+let waLocalStream = null;
+let waRemoteStream = null;
+let waPeerConnection = null;
+let waSignalingChannel = null;
+
+const waRtcConfig = {
+    iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' }
+    ]
+};
+
+// Chat UI se ye functions call honge
+function startAudioCall() {
+    if (typeof activeChatUser !== 'undefined' && activeChatUser) {
+        startWaCall(false, activeChatUser);
+    } else {
+        alert("Pehle koi chat select karein!");
+    }
+}
+
+function startVideoCall() {
+    if (typeof activeChatUser !== 'undefined' && activeChatUser) {
+        startWaCall(true, activeChatUser);
+    } else {
+        alert("Pehle koi chat select karein!");
+    }
+}
+
+function initWaSignaling(roomUser) {
+    if (typeof supabaseClient === 'undefined' || !supabaseClient) return;
+    if (waSignalingChannel) supabaseClient.removeChannel(waSignalingChannel);
+
+    const currentUser = localStorage.getItem('currentUsername');
+    if (!currentUser || !roomUser) return;
+    
+    const roomName = `wa_call_${[currentUser, roomUser].sort().join('_')}`;
+
+    waSignalingChannel = supabaseClient.channel(roomName, {
+        config: { broadcast: { self: false } }
+    });
+
+    waSignalingChannel
+        .on('broadcast', { event: 'wa-call-offer' }, async ({ payload }) => {
+            if (payload.receiver === currentUser) {
+                window.waPendingOffer = payload.offer;
+                window.waCallerName = payload.caller;
+                window.waCallType = payload.callType;
+                showWaIncomingUI(payload.caller, payload.callType);
+            }
+        })
+        .on('broadcast', { event: 'wa-call-answer' }, async ({ payload }) => {
+            if (waPeerConnection && waPeerConnection.signalingState === 'have-local-offer') {
+                await waPeerConnection.setRemoteDescription(new RTCSessionDescription(payload.answer));
+                updateWaStatus("Ringing...");
+            }
+        })
+        .on('broadcast', { event: 'wa-ice-candidate' }, async ({ payload }) => {
+            if (waPeerConnection && payload.candidate) {
+                try {
+                    await waPeerConnection.addIceCandidate(new RTCIceCandidate(payload.candidate));
+                } catch (e) {}
+            }
+        })
+        .on('broadcast', { event: 'wa-call-ended' }, () => {
+            endWaCallScreen(false);
+        })
+        .subscribe();
+}
+
+async function startWaCall(isVideo, targetUser) {
+    initWaSignaling(targetUser);
+    showWaCallUI(isVideo, targetUser, "Calling...");
+
+    try {
+        waLocalStream = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+            video: isVideo ? { facingMode: 'user' } : false
+        });
+    } catch (err) {
+        alert("Camera ya Microphone ki permission nahi mili.");
+        endWaCallScreen(false);
+        return;
+    }
+
+    const localVideoEl = document.getElementById('wa-local-video');
+    if (localVideoEl && isVideo) localVideoEl.srcObject = waLocalStream;
+
+    waPeerConnection = new RTCPeerConnection(waRtcConfig);
+    waLocalStream.getTracks().forEach(track => waPeerConnection.addTrack(track, waLocalStream));
+
+    waPeerConnection.ontrack = event => {
+        waRemoteStream = event.streams[0];
+        const remoteVideoEl = document.getElementById('wa-remote-video');
+        if (remoteVideoEl && isVideo) remoteVideoEl.srcObject = waRemoteStream;
+        const remoteAudioEl = document.getElementById('wa-remote-audio');
+        if (remoteAudioEl) remoteAudioEl.srcObject = waRemoteStream;
+    };
+
+    waPeerConnection.onicecandidate = event => {
+        if (event.candidate && waSignalingChannel) {
+            waSignalingChannel.send({
+                type: 'broadcast',
+                event: 'wa-ice-candidate',
+                payload: { candidate: event.candidate }
+            });
+        }
+    };
+
+    const offer = await waPeerConnection.createOffer();
+    await waPeerConnection.setLocalDescription(offer);
+
+    const currentUser = localStorage.getItem('currentUsername');
+    setTimeout(() => {
+        if (waSignalingChannel) {
+            waSignalingChannel.send({
+                type: 'broadcast',
+                event: 'wa-call-offer',
+                payload: { caller: currentUser, receiver: targetUser, offer, callType: isVideo ? 'video' : 'audio' }
+            });
+        }
+    }, 1000);
+}
+
+function showWaIncomingUI(caller, callType) {
+    let overlay = document.getElementById('wa-call-overlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'wa-call-overlay';
+        overlay.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:#0b141a; z-index:9999; display:flex; flex-direction:column; justify-content:space-between; align-items:center; padding:60px 20px; color:#fff; font-family:sans-serif;";
+        document.body.appendChild(overlay);
+    }
+
+    overlay.innerHTML = `
+        <div style="display:flex; flex-direction:column; align-items:center; gap:15px; margin-top:50px;">
+            <div style="width:110px; height:110px; border-radius:50%; background:#202c33; display:flex; align-items:center; justify-content:center; font-size:45px; color:#8696a0; border: 2px solid #2a3942;">${caller.charAt(0).toUpperCase()}</div>
+            <h2 style="font-size:26px; font-weight:500; margin:0;">${caller}</h2>
+            <p style="font-size:15px; color:#8696a0; margin:0;">WhatsApp ${callType} call...</p>
+        </div>
+        <div style="display:flex; gap:80px; margin-bottom:50px; align-items:center;">
+            <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
+                <button onclick="rejectWaCall()" style="width:65px; height:65px; border-radius:50%; background:#ea0038; border:none; color:#fff; font-size:22px; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow: 0 4px 10px rgba(234,0,56,0.3);"><i class="fa-solid fa-phone-slash"></i></button>
+                <span style="font-size:12px; color:#8696a0;">Decline</span>
+            </div>
+            <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
+                <button onclick="acceptWaCall()" style="width:65px; height:65px; border-radius:50%; background:#00a884; border:none; color:#fff; font-size:22px; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow: 0 4px 10px rgba(0,168,132,0.3);"><i class="fa-solid fa-phone"></i></button>
+                <span style="font-size:12px; color:#8696a0;">Accept</span>
+            </div>
+        </div>
+    `;
+    overlay.style.display = 'flex';
+}
+
+async function acceptWaCall() {
+    const caller = window.waCallerName;
+    const isVideo = window.waCallType === 'video';
+    initWaSignaling(caller);
+    showWaCallUI(isVideo, caller, "Connected");
+
+    try {
+        waLocalStream = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+            video: isVideo ? { facingMode: 'user' } : false
+        });
+    } catch (err) {
+        alert("Permission denied.");
+        endWaCallScreen(false);
+        return;
+    }
+
+    const localVideoEl = document.getElementById('wa-local-video');
+    if (localVideoEl && isVideo) localVideoEl.srcObject = waLocalStream;
+
+    waPeerConnection = new RTCPeerConnection(waRtcConfig);
+    waLocalStream.getTracks().forEach(track => waPeerConnection.addTrack(track, waLocalStream));
+
+    waPeerConnection.ontrack = event => {
+        waRemoteStream = event.streams[0];
+        const remoteVideoEl = document.getElementById('wa-remote-video');
+        if (remoteVideoEl && isVideo) remoteVideoEl.srcObject = waRemoteStream;
+        const remoteAudioEl = document.getElementById('wa-remote-audio');
+        if (remoteAudioEl) remoteAudioEl.srcObject = waRemoteStream;
+    };
+
+    await waPeerConnection.setRemoteDescription(new RTCSessionDescription(window.waPendingOffer));
+    const answer = await waPeerConnection.createAnswer();
+    await waPeerConnection.setLocalDescription(answer);
+
+    if (waSignalingChannel) {
+        waSignalingChannel.send({ type: 'broadcast', event: 'wa-call-answer', payload: { answer } });
+    }
+}
+
+function rejectWaCall() {
+    if (waSignalingChannel) {
+        waSignalingChannel.send({ type: 'broadcast', event: 'wa-call-ended', payload: {} });
+    }
+    endWaCallScreen(false);
+}
+
+function showWaCallUI(isVideo, targetUser, statusText) {
+    let overlay = document.getElementById('wa-call-overlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'wa-call-overlay';
+        overlay.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:#0b141a; z-index:9999; display:flex; flex-direction:column; justify-content:space-between; align-items:center; color:#fff; font-family:sans-serif;";
+        document.body.appendChild(overlay);
+    }
+
+    overlay.innerHTML = `
+        <div style="position:relative; width:100%; height:100%; display:flex; flex-direction:column; justify-content:space-between; align-items:center; overflow:hidden;">
+            ${isVideo ? `
+                <video id="wa-remote-video" autoplay playsinline style="position:absolute; top:0; left:0; width:100%; height:100%; object-fit:cover; z-index:1; background:#111;"></video>
+                <div style="position:absolute; top:30px; left:20px; z-index:3; display:flex; align-items:center; gap:10px;">
+                    <div style="font-weight:500; font-size:18px; text-shadow:0 1px 3px rgba(0,0,0,0.8);">${targetUser}</div>
+                </div>
+                <div id="wa-status-text" style="position:absolute; top:55px; left:20px; z-index:3; font-size:13px; color:#8696a0; text-shadow:0 1px 3px rgba(0,0,0,0.8);">${statusText}</div>
+                <video id="wa-local-video" autoplay playsinline muted style="position:absolute; top:30px; right:20px; width:100px; height:150px; object-fit:cover; border-radius:8px; z-index:2; background:#222; border: 1px solid rgba(255,255,255,0.2);"></video>
+            ` : `
+                <div style="display:flex; flex-direction:column; align-items:center; gap:12px; margin-top:100px; z-index:2;">
+                    <div style="width:120px; height:120px; border-radius:50%; background:#202c33; display:flex; align-items:center; justify-content:center; font-size:50px; color:#8696a0; border: 2px solid #2a3942;">${targetUser.charAt(0).toUpperCase()}</div>
+                    <h2 style="font-size:26px; font-weight:500; margin:0;">${targetUser}</h2>
+                    <p style="font-size:14px; color:#8696a0; margin:0;" id="wa-status-text">${statusText}</p>
+                </div>
+                <audio id="wa-remote-audio" autoplay></audio>
+            `}
+            
+            <div style="width:100%; padding:30px; display:flex; justify-content:center; align-items:center; z-index:3; background: rgba(11, 20, 26, 0.6); backdrop-filter: blur(5px);">
+                <button onclick="endWaCallScreen(true)" style="width:65px; height:65px; border-radius:50%; background:#ea0038; border:none; color:#fff; font-size:24px; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow: 0 4px 15px rgba(234,0,56,0.4);"><i class="fa-solid fa-phone-slash"></i></button>
+            </div>
+        </div>
+    `;
+    overlay.style.display = 'flex';
+}
+
+function updateWaStatus(text) {
+    const statusEl = document.getElementById('wa-status-text');
+    if (statusEl) statusEl.textContent = text;
+}
+
+function endWaCallScreen(sendSignal = true) {
+    if (sendSignal && waSignalingChannel) {
+        waSignalingChannel.send({ type: 'broadcast', event: 'wa-call-ended', payload: {} });
+    }
+    if (waLocalStream) {
+        waLocalStream.getTracks().forEach(t => t.stop());
+        waLocalStream = null;
+    }
+    if (waPeerConnection) {
+        waPeerConnection.close();
+        waPeerConnection = null;
+    }
+    const overlay = document.getElementById('wa-call-overlay');
+    if (overlay) {
+        overlay.style.display = 'none';
+        overlay.remove();
+    }
+}
