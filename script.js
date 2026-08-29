@@ -1130,3 +1130,63 @@ function renderProfileUI(userData) {
         // Aapka profile rendering logic yahan run hoga
     }
 }
+// ==========================================
+// LOGIN STUCK FIX & AUTO ROUTER RECOVERY
+// ==========================================
+
+window.handleLoginStuck = function() {
+    const currentUser = localStorage.getItem('currentUsername');
+    
+    // Agar username saved hai lekin app login page par hi atki hai, toh direct home page par bhej do
+    if (currentUser && window.location.hash !== '#home' && typeof showHomePage === 'function') {
+        showHomePage();
+    }
+};
+
+// Login button ya form submit par yeh check karega ki routing proper ho rahi hai ya nahi
+window.forceNavigateAfterLogin = function(username) {
+    if (!username) {
+        alert("Please enter a valid username!");
+        return;
+    }
+    
+    // Username save karo
+    localStorage.setItem('currentUsername', username.trim());
+    
+    // Online status update karo
+    if (typeof updateUserPresence === 'function') {
+        updateUserPresence(true);
+    }
+
+    // Page reload ya view switch trigger karo
+    const loginPage = document.getElementById('login-page') || document.getElementById('login-container');
+    const mainApp = document.getElementById('main-app') || document.getElementById('home-page');
+
+    if (loginPage) loginPage.style.display = 'none';
+    if (mainApp) mainApp.style.display = 'block';
+
+    // Agar koi specific function hai home page dikhane ka
+    if (typeof loadChatUsersFast === 'function') {
+        loadChatUsersFast();
+    }
+    
+    // Fallback reload agar elements hide na ho rahe hon
+    setTimeout(() => {
+        if (window.location.hash !== '#home') {
+            window.location.reload();
+        }
+    }, 500);
+};
+
+// App load hote hi check karega ki kahin login par atka toh nahi hai
+window.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => {
+        const currentUser = localStorage.getItem('currentUsername');
+        const loginPage = document.getElementById('login-page');
+        
+        // Agar user logged in hai par login page abhi bhi dikh raha hai
+        if (currentUser && loginPage && getComputedStyle(loginPage).display !== 'none') {
+            window.handleLoginStuck();
+        }
+    }, 1000);
+});
