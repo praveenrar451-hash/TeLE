@@ -993,3 +993,352 @@ function endCallScreen(sendSignal = true) {
         overlay.remove();
     }
     }
+// ==========================================
+// INSTAGRAM-STYLE FULL FEATURED WEBRTC CALLING
+// Is code ko apni JS file ke sabse last me paste karein
+// ==========================================
+
+let localStream = null;
+let remoteStream = null;
+let peerConnection = null;
+let signalingChannel = null;
+let isFrontCamera = true;
+let isSpeakerOn = false;
+
+const rtcConfig = {
+    iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' }
+    ]
+};
+
+// Start Calls (Chat UI se ye functions call honge)
+function startAudioCall() {
+    startWebRTCCall(false);
+}
+
+function startVideoCall() {
+    startWebRTCCall(true);
+}
+
+function initSignalingChannel(roomUser) {
+    if (!supabaseClient) return;
+    if (signalingChannel) supabaseClient.removeChannel(signalingChannel);
+
+    const currentUser = localStorage.getItem('currentUsername');
+    if (!currentUser || !roomUser) return;
+    
+    const roomName = `rtc_call_${[currentUser, roomUser].sort().join('_')}`;
+
+    signalingChannel = supabaseClient.channel(roomName, {
+        config: { broadcast: { self: false } }
+    });
+
+    signalingChannel
+        .on('broadcast', { event: 'call-offer' }, async ({ payload }) => {
+            if (payload.receiver === currentUser) {
+                window.pendingOffer = payload.offer;
+                window.callerName = payload.caller;
+                window.incomingCallType = payload.callType;
+                showIncomingCallUI(payload.caller, payload.callType);
+            }
+        })
+        .on('broadcast', { event: 'call-answer' }, async ({ payload }) => {
+            if (peerConnection && peerConnection.signalingState === 'have-local-offer') {
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.answer));
+                updateCallStatus("00:00"); // Call connected
+            }
+        })
+        .on('broadcast', { event: 'ice-candidate' }, async ({ payload }) => {
+            if (peerConnection && payload.candidate) {
+                try {
+                    await peerConnection.addIceCandidate(new RTCIceCandidate(payload.candidate));
+                } catch (e) {}
+            }
+        })
+        .on('broadcast', { event: 'call-ended' }, () => {
+            endCallScreen(false);
+        })
+        .subscribe();
+}
+
+async function setupMedia(isVideo, useFront = true) {
+    try {
+        if (localStream) {
+            localStream.getTracks().forEach(t => t.stop());
+        }
+        localStream = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+            video: isVideo ? { facingMode: useFront ? 'user' : 'environment' } : false
+        });
+        return localStream;
+    } catch (err) {
+        console.error("Media error:", err);
+        alert("Camera ya Microphone ki permission nahi mili.");
+        return null;
+    }
+}
+
+async function createPeerConnection(remoteUser, isVideo) {
+    peerConnection = new RTCPeerConnection(rtcConfig);
+
+    if (localStream) {
+        localStream.getTracks().forEach(track => {
+            peerConnection.addTrack(track, localStream);
+        });
+    }
+
+    peerConnection.ontrack = event => {
+        remoteStream = event.streams[0];
+        const remoteVideoEl = document.getElementById('remote-video-element');
+        if (remoteVideoEl && isVideo) {
+            remoteVideoEl.srcObject = remoteStream;
+        }
+        const remoteAudioEl = document.getElementById('remote-audio-element');
+        if (remoteAudioEl) {
+            remoteAudioEl.srcObject = remoteStream;
+        }
+    };
+
+    peerConnection.onicecandidate = event => {
+        if (event.candidate && signalingChannel) {
+            signalingChannel.send({
+                type: 'broadcast',
+                event: 'ice-candidate',
+                payload: { candidate: event.candidate }
+            });
+        }
+    };
+}
+
+async function startWebRTCCall(isVideo) {
+    if (!activeChatUser) return;
+    initSignalingChannel(activeChatUser);
+    showWebRTCUI(isVideo, activeChatUser, "Calling...");
+
+    const stream = await setupMedia(isVideo, isFrontCamera);
+    if (!stream) {
+        endCallScreen(false);
+        return;
+    }
+
+    const localVideoEl = document.getElementById('local-video-element');
+    if (localVideoEl && isVideo) localVideoEl.srcObject = localStream;
+
+    await createPeerConnection(activeChatUser, isVideo);
+
+    const offer = await peerConnection.createOffer();
+    await peerConnection.setLocalDescription(offer);
+
+    const currentUser = localStorage.getItem('currentUsername');
+    setTimeout(() => {
+        if (signalingChannel) {
+            signalingChannel.send({
+                type: 'broadcast',
+                event: 'call-offer',
+                payload: { caller: currentUser, receiver: activeChatUser, offer, callType: isVideo ? 'video' : 'audio' }
+            });
+        }
+    }, 1000);
+}
+
+function showIncomingCallUI(caller, callType) {
+    let overlay = document.getElementById('instagram-call-overlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'instagram-call-overlay';
+        overlay.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:linear-gradient(to bottom, #262626, #000); z-index:9999; display:flex; flex-direction:column; justify-content:space-between; align-items:center; padding:60px 20px; color:#fff;";
+        document.body.appendChild(overlay);
+    }
+
+    overlay.innerHTML = `
+        <div style="display:flex; flex-direction:column; align-items:center; gap:15px; margin-top:40px;">
+            <div class="avatar" style="width:120px; height:120px; font-size:50px; background-color:#363636; box-shadow: 0 0 20px rgba(255,255,255,0.1);">${caller.charAt(0).toUpperCase()}</div>
+            <h2 style="font-size:28px; font-weight:600; margin:0;">${caller}</h2>
+            <p style="font-size:16px; color:#a8a8a8; margin:0;">Instagram ${callType} call...</p>
+        </div>
+        <div style="display:flex; gap:60px; margin-bottom:40px; align-items:center;">
+            <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
+                <button onclick="rejectIncomingCall()" style="width:65px; height:65px; border-radius:50%; background:#ed4956; border:none; color:#fff; font-size:24px; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow: 0 4px 15px rgba(237, 73, 86, 0.4);"><i class="fa-solid fa-xmark"></i></button>
+                <span style="font-size:12px; color:#fff;">Decline</span>
+            </div>
+            <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
+                <button onclick="acceptIncomingCall()" style="width:65px; height:65px; border-radius:50%; background:#4CAF50; border:none; color:#fff; font-size:24px; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow: 0 4px 15px rgba(76, 175, 80, 0.4);"><i class="fa-solid ${callType === 'video' ? 'fa-video' : 'fa-phone'}"></i></button>
+                <span style="font-size:12px; color:#fff;">Accept</span>
+            </div>
+        </div>
+    `;
+    overlay.style.display = 'flex';
+}
+
+async function acceptIncomingCall() {
+    activeChatUser = window.callerName;
+    initSignalingChannel(activeChatUser);
+    const isVideo = window.incomingCallType === 'video';
+
+    showWebRTCUI(isVideo, activeChatUser, "Connecting...");
+    const stream = await setupMedia(isVideo, isFrontCamera);
+    if (!stream) {
+        endCallScreen(false);
+        return;
+    }
+    
+    const localVideoEl = document.getElementById('local-video-element');
+    if (localVideoEl && isVideo) localVideoEl.srcObject = localStream;
+
+    await createPeerConnection(activeChatUser, isVideo);
+
+    await peerConnection.setRemoteDescription(new RTCSessionDescription(window.pendingOffer));
+    const answer = await peerConnection.createAnswer();
+    await peerConnection.setLocalDescription(answer);
+
+    if (signalingChannel) {
+        signalingChannel.send({
+            type: 'broadcast',
+            event: 'call-answer',
+            payload: { answer }
+        });
+    }
+}
+
+function rejectIncomingCall() {
+    if (signalingChannel) {
+        signalingChannel.send({ type: 'broadcast', event: 'call-ended', payload: {} });
+    }
+    endCallScreen(false);
+}
+
+function showWebRTCUI(isVideo, targetUser, statusText) {
+    let overlay = document.getElementById('instagram-call-overlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'instagram-call-overlay';
+        overlay.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:#121212; z-index:9999; display:flex; flex-direction:column; justify-content:space-between; align-items:center; color:#fff;";
+        document.body.appendChild(overlay);
+    }
+
+    // Insta style PIP and Buttons
+    overlay.innerHTML = `
+        <div style="position:relative; width:100%; height:100%; display:flex; flex-direction:column; justify-content:space-between; align-items:center; overflow:hidden;">
+            
+            ${isVideo ? `
+                <!-- Remote Video (Full Screen) -->
+                <video id="remote-video-element" autoplay playsinline style="position:absolute; top:0; left:0; width:100%; height:100%; object-fit:cover; z-index:1; background:#111;"></video>
+                
+                <!-- Top User Info Overlay -->
+                <div style="position:absolute; top:40px; left:20px; z-index:3; display:flex; align-items:center; gap:10px; text-shadow: 0 1px 3px rgba(0,0,0,0.8);">
+                    <div class="avatar" style="width:40px; height:40px; font-size:16px;">${targetUser.charAt(0).toUpperCase()}</div>
+                    <div>
+                        <div style="font-weight:bold; font-size:16px;">${targetUser}</div>
+                        <div id="call-status-text" style="font-size:12px; opacity:0.8;">${statusText}</div>
+                    </div>
+                </div>
+
+                <!-- PIP View (Local Video) -->
+                <video id="local-video-element" autoplay playsinline muted style="position:absolute; top:40px; right:20px; width:100px; height:150px; object-fit:cover; border-radius:12px; z-index:2; background:#333; box-shadow: 0 4px 12px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.2);"></video>
+            ` : `
+                <!-- Audio Call Profile UI -->
+                <div style="display:flex; flex-direction:column; align-items:center; gap:15px; margin-top:120px; z-index:2;">
+                    <div class="avatar" style="width:130px; height:130px; font-size:55px; background-color:#262626; border: 2px solid #333;">${targetUser.charAt(0).toUpperCase()}</div>
+                    <h2 style="font-size:28px; font-weight:600; margin:0;">${targetUser}</h2>
+                    <p style="font-size:16px; color:#a8a8a8; margin:0;" id="call-status-text">${statusText}</p>
+                </div>
+                <audio id="remote-audio-element" autoplay></audio>
+            `}
+            
+            <!-- Instagram Style Bottom Controls -->
+            <div style="width:100%; padding:30px 40px; padding-bottom:50px; display:flex; justify-content:space-between; align-items:center; z-index:3; background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);">
+                
+                <!-- Camera Flip or Speaker -->
+                ${isVideo ? 
+                    `<button onclick="switchCameraFeed()" style="width:50px; height:50px; border-radius:50%; background:rgba(255,255,255,0.15); backdrop-filter:blur(10px); border:none; color:#fff; font-size:20px; cursor:pointer;"><i class="fa-solid fa-camera-rotate"></i></button>` : 
+                    `<button onclick="toggleSpeaker(this)" style="width:50px; height:50px; border-radius:50%; background:rgba(255,255,255,0.15); backdrop-filter:blur(10px); border:none; color:#fff; font-size:20px; cursor:pointer;"><i class="fa-solid fa-volume-high"></i></button>`
+                }
+
+                <!-- Mute Button -->
+                <button onclick="toggleCallMute(this)" style="width:50px; height:50px; border-radius:50%; background:rgba(255,255,255,0.15); backdrop-filter:blur(10px); border:none; color:#fff; font-size:20px; cursor:pointer;"><i class="fa-solid fa-microphone"></i></button>
+                
+                <!-- End Call Button -->
+                <button onclick="endCallScreen(true)" style="width:65px; height:65px; border-radius:50%; background:#ed4956; border:none; color:#fff; font-size:24px; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow: 0 4px 15px rgba(237, 73, 86, 0.4);"><i class="fa-solid fa-phone-slash"></i></button>
+            </div>
+        </div>
+    `;
+    overlay.style.display = 'flex';
+}
+
+function updateCallStatus(text) {
+    const statusEl = document.getElementById('call-status-text');
+    if (statusEl) statusEl.textContent = text;
+}
+
+async function switchCameraFeed() {
+    isFrontCamera = !isFrontCamera;
+    if (localStream) {
+        localStream.getVideoTracks().forEach(t => t.stop());
+    }
+    const newStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: isFrontCamera ? 'user' : 'environment' }
+    });
+    
+    const videoTrack = newStream.getVideoTracks()[0];
+    localStream.addTrack(videoTrack);
+
+    const localVideoEl = document.getElementById('local-video-element');
+    if (localVideoEl) localVideoEl.srcObject = localStream;
+
+    if (peerConnection) {
+        const videoSender = peerConnection.getSenders().find(s => s.track && s.track.kind === 'video');
+        if (videoSender) {
+            videoSender.replaceTrack(videoTrack);
+        }
+    }
+}
+
+function toggleCallMute(btn) {
+    if (!localStream) return;
+    const audioTrack = localStream.getAudioTracks()[0];
+    if (!audioTrack) return;
+
+    audioTrack.enabled = !audioTrack.enabled;
+    if (audioTrack.enabled) {
+        btn.style.background = 'rgba(255,255,255,0.15)';
+        btn.style.color = '#fff';
+        btn.innerHTML = '<i class="fa-solid fa-microphone"></i>';
+    } else {
+        btn.style.background = '#fff';
+        btn.style.color = '#000';
+        btn.innerHTML = '<i class="fa-solid fa-microphone-slash"></i>';
+    }
+}
+
+function toggleSpeaker(btn) {
+    isSpeakerOn = !isSpeakerOn;
+    if (isSpeakerOn) {
+        btn.style.background = '#fff';
+        btn.style.color = '#000';
+    } else {
+        btn.style.background = 'rgba(255,255,255,0.15)';
+        btn.style.color = '#fff';
+    }
+    // Web mein direct speaker control sabhi browsers me supported nahi hota hai default route follow karta hai. 
+    // UI button add kar diya gaya hai Instagram UI ko match karne ke liye.
+}
+
+function endCallScreen(sendSignal = true) {
+    if (sendSignal && signalingChannel) {
+        signalingChannel.send({ type: 'broadcast', event: 'call-ended', payload: {} });
+    }
+    if (localStream) {
+        localStream.getTracks().forEach(t => t.stop());
+        localStream = null;
+    }
+    if (peerConnection) {
+        peerConnection.close();
+        peerConnection = null;
+    }
+    const overlay = document.getElementById('instagram-call-overlay');
+    if (overlay) {
+        overlay.style.display = 'none';
+        overlay.remove();
+    }
+}
