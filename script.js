@@ -1986,3 +1986,126 @@ if (typeof supabaseClient !== 'undefined' && supabaseClient) {
             .subscribe();
     };
 }
+// Instagram Style Profile Grid & Reels Upload Module - Paste this at the very end of your script.js
+
+// 1. Profile Grid ko Instagram jaisa (3 columns & square aspect ratio) banane ka function
+function styleProfileGridAsInstagram() {
+    const profileGridContainers = document.querySelectorAll('.profile-posts-grid, .posts-grid, .grid-container');
+    profileGridContainers.forEach(grid => {
+        grid.style.display = 'grid';
+        grid.style.gridTemplateColumns = 'repeat(3, 1fr)';
+        grid.style.gap = '3px';
+        grid.style.width = '100%';
+        
+        // Grid ke items/images ko square maintain karne ke liye
+        const items = grid.querySelectorAll('.post-item, .grid-item, img, video');
+        items.forEach(item => {
+            item.style.width = '100%';
+            item.style.aspectRatio = '1 / 1';
+            item.style.objectFit = 'cover';
+            item.style.cursor = 'pointer';
+            item.style.borderRadius = '0';
+        });
+    });
+}
+
+// 2. Post ya Reel par tap karne par Instagram jaisa Fullscreen View open karne ka function
+function openPostModal(mediaUrl, mediaType = 'image', caption = '') {
+    let modal = document.getElementById('insta-media-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'insta-media-modal';
+        modal.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:99999; display:flex; justify-content:center; align-items:center; padding:20px;";
+        document.body.appendChild(modal);
+    }
+
+    modal.innerHTML = `
+        <div style="position:relative; max-width:500px; width:100%; background:#000; border-radius:8px; overflow:hidden; display:flex; flex-direction:column; border:1px solid #363636;">
+            <div style="display:flex; justify-content:flex-end; padding:10px; background:#121212;">
+                <button onclick="closePostModal()" style="background:none; border:none; color:#fff; font-size:22px; cursor:pointer;"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div style="width:100%; max-height:70vh; display:flex; justify-content:center; align-items:center; background:#111;">
+                ${mediaType === 'video' ? `
+                    <video src="${mediaUrl}" controls autoplay style="width:100%; max-height:70vh; object-fit:contain;"></video>
+                ` : `
+                    <img src="${mediaUrl}" style="width:100%; max-height:70vh; object-fit:contain;">
+                `}
+            </div>
+            ${caption ? `<div style="padding:15px; color:#fff; font-size:14px; background:#121212;">${caption}</div>` : ''}
+        </div>
+    `;
+    modal.style.display = 'flex';
+}
+
+function closePostModal() {
+    const modal = document.getElementById('insta-media-modal');
+    if (modal) {
+        modal.style.display = 'none';
+        // Video roklein agar play ho rahi ho
+        const video = modal.querySelector('video');
+        if (video) video.pause();
+    }
+}
+
+// 3. Reels Section ke upper corner mein Plus(+) icon jodne aur Reel upload karne ka function
+function injectReelUploadButton() {
+    // Reels section ya container ko dhundhein
+    const reelsHeader = document.querySelector('.reels-header, #reels-container .top-bar, .reels-top-section');
+    if (reelsHeader && !document.getElementById('reel-upload-plus-btn')) {
+        reelsHeader.style.position = 'relative';
+        
+        const plusBtn = document.createElement('button');
+        plusBtn.id = 'reel-upload-plus-btn';
+        plusBtn.innerHTML = '<i class="fa-solid fa-plus"></i>';
+        plusBtn.style.cssText = "position:absolute; right:15px; top:50%; transform:translateY(-50%); background:none; border:none; color:#fff; font-size:22px; cursor:pointer; z-index:10;";
+        
+        plusBtn.onclick = () => triggerReelGalleryUpload();
+        reelsHeader.appendChild(plusBtn);
+    }
+}
+
+function triggerReelGalleryUpload() {
+    let fileInput = document.getElementById('hidden-reel-file-input');
+    if (!fileInput) {
+        fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.id = 'hidden-reel-file-input';
+        fileInput.accept = 'video/*';
+        fileInput.style.display = 'none';
+        
+        fileInput.onchange = function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const videoUrl = URL.createObjectURL(file);
+                // Agar aapke paas database me upload karne ka function hai toh yahan call hoga
+                alert("Reel selected successfully! Ab aap ise feed mein render kar sakte hain.");
+                // Example: uploadReelToSupabase(file);
+            }
+        };
+        document.body.appendChild(fileInput);
+    }
+    fileInput.click();
+}
+
+// Auto-initialize styling and buttons on load
+window.addEventListener('DOMContentLoaded', () => {
+    setInterval(() => {
+        styleProfileGridAsInstagram();
+        injectReelUploadButton();
+    }, 1000);
+});
+
+// Global event delegation for opening posts/reels on click
+document.addEventListener('click', function(e) {
+    const targetItem = e.target.closest('.post-item, .grid-item, .reel-item');
+    if (targetItem) {
+        const img = targetItem.querySelector('img');
+        const video = targetItem.querySelector('video');
+        const mediaUrl = targetItem.getAttribute('data-media-url') || (img ? img.src : null) || (video ? video.src : null);
+        const mediaType = video || (targetItem.tagName === 'VIDEO') ? 'video' : 'image';
+        
+        if (mediaUrl) {
+            openPostModal(mediaUrl, mediaType);
+        }
+    }
+});
