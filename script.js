@@ -1901,47 +1901,89 @@ function updateBlueTicksUI(seenByUser) {
         });
     }
                         }
-// Typing Indicator Module - Paste this at the very end of your script.js
+// Instagram Style Typing Indicator Module - Paste this at the very end of your script.js
 
-let userTypingTimer = null;
+// 1. Instagram style ke liye HTML/CSS inject karne ka function
+function ensureInstaTypingElement() {
+    let container = document.getElementById('insta-typing-indicator-box');
+    if (!container) {
+        // Chat messages container ko dhundhein jahan messages aate hain
+        const msgContainer = document.querySelector('.chat-messages, #chatroom-messages, .messages-box');
+        if (msgContainer) {
+            container = document.createElement('div');
+            container.id = 'insta-typing-indicator-box';
+            container.style.cssText = "display: none; align-items: center; gap: 4px; padding: 8px 12px; background: #262626; border-radius: 18px; width: fit-content; margin: 10px 0 10px 15px;";
+            container.innerHTML = `
+                <div class="insta-dot" style="width: 6px; height: 6px; background: #a8a8a8; border-radius: 50%; animation: instaBlink 1.4s infinite ease-in-out both; animation-delay: -0.32s;"></div>
+                <div class="insta-dot" style="width: 6px; height: 6px; background: #a8a8a8; border-radius: 50%; animation: instaBlink 1.4s infinite ease-in-out both; animation-delay: -0.16s;"></div>
+                <div class="insta-dot" style="width: 6px; height: 6px; background: #a8a8a8; border-radius: 50%; animation: instaBlink 1.4s infinite ease-in-out both;"></div>
+            `;
+            
+            // CSS Animation inject karna agar pehle se na ho
+            if (!document.getElementById('insta-typing-keyframes')) {
+                const style = document.createElement('style');
+                style.id = 'insta-typing-keyframes';
+                style.innerHTML = `
+                    @keyframes instaBlink {
+                        0%, 80%, 100% { transform: scale(0); opacity: 0.4; }
+                        40% { transform: scale(1.0); opacity: 1; }
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+            
+            msgContainer.appendChild(container);
+        }
+    }
+    return container;
+}
 
-// Call this function on chat input keydown (e.g., oninput="handleTypingTrigger()")
-function handleTypingTrigger() {
+let instaTypingTimer = null;
+
+// 2. Jab aap khud type karein toh trigger karne ke liye (Aapke input box ke oninput ya onkeyup me ye function daal sakte hain)
+function triggerInstaTyping() {
     if (typeof activeChatUser === 'undefined' || !activeChatUser) return;
     const currentUser = localStorage.getItem('currentUsername');
     if (!currentUser || typeof mainChatChannel === 'undefined' || !mainChatChannel) return;
 
     mainChatChannel.send({
         type: 'broadcast',
-        event: 'user-typing-event',
+        event: 'insta-typing-broadcast',
         payload: { sender: currentUser, receiver: activeChatUser, isTyping: true }
     });
 
-    clearTimeout(userTypingTimer);
-    userTypingTimer = setTimeout(() => {
+    clearTimeout(instaTypingTimer);
+    instaTypingTimer = setTimeout(() => {
         mainChatChannel.send({
             type: 'broadcast',
-            event: 'user-typing-event',
+            event: 'insta-typing-broadcast',
             payload: { sender: currentUser, receiver: activeChatUser, isTyping: false }
         });
     }, 1200);
 }
 
-function renderTypingIndicator(sender, isTyping) {
+// 3. Jab samne wala type kare toh Instagram ki tarah bubble dikhane ke liye
+function renderInstaTypingIndicator(sender, isTyping) {
     if (typeof activeChatUser !== 'undefined' && activeChatUser === sender) {
-        let typingIndicatorEl = document.getElementById('chat-typing-status-bubble');
-        const chatHeader = document.querySelector('.chat-header, #chatroom-container .top-bar');
-        
-        if (!typingIndicatorEl && chatHeader) {
-            typingIndicatorEl = document.createElement('div');
-            typingIndicatorEl.id = 'chat-typing-status-bubble';
-            typingIndicatorEl.style.cssText = "font-size:11px; color:#00a884; font-style:italic; margin-left:10px;";
-            chatHeader.appendChild(typingIndicatorEl);
-        }
-
-        if (typingIndicatorEl) {
-            typingIndicatorEl.style.display = isTyping ? 'inline-block' : 'none';
-            typingIndicatorEl.textContent = 'typing...';
+        const container = ensureInstaTypingElement();
+        if (container) {
+            container.style.display = isTyping ? 'flex' : 'none';
+            
+            // Scroll down so indicator is visible
+            const msgContainer = document.querySelector('.chat-messages, #chatroom-messages, .messages-box');
+            if (msgContainer && isTyping) {
+                msgContainer.scrollTop = msgContainer.scrollHeight;
+            }
         }
     }
+}
+
+// Global listener hook agar channel pehle se bana hai
+if (typeof mainChatChannel !== 'undefined' && mainChatChannel) {
+    mainChatChannel.on('broadcast', { event: 'insta-typing-broadcast' }, ({ payload }) => {
+        const currentUser = localStorage.getItem('currentUsername');
+        if (payload.receiver === currentUser) {
+            renderInstaTypingIndicator(payload.sender, payload.isTyping);
+        }
+    });
 }
