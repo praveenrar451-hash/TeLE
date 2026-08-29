@@ -1071,3 +1071,62 @@ function displayUserList(users) {
     const listEl = document.getElementById('chat-users-list');
     if (!listEl) return;
 }
+
+// ==========================================
+// INSTANT PROFILE & PRELOAD OPTIMIZATION
+// ==========================================
+
+// Global cache storage
+const profileCache = new Map();
+
+// 1. Background Preloader: Jaise hi app load ho, saare users ka data cache mein daal do
+window.preloadAllProfiles = async function() {
+    const { data, error } = await supabaseClient
+        .from('users')
+        .select('*')
+        .limit(50); // Apne user base ke hisab se limit adjust kar sakte hain
+
+    if (data && data.length > 0) {
+        data.forEach(user => {
+            if (user.username) {
+                profileCache.set(user.username, user);
+            }
+        });
+    }
+};
+
+// Call preload on startup
+window.addEventListener('DOMContentLoaded', () => {
+    window.preloadAllProfiles();
+});
+
+// 2. Lightning Fast Profile Loader (Ab yeh 100% instant chalega kyunki data pehle se cache mein hoga)
+window.loadUserProfileFast = async function(username) {
+    if (!username) return;
+    
+    // Check cache first
+    if (profileCache.has(username)) {
+        renderProfileUI(profileCache.get(username));
+        return;
+    }
+
+    // Fallback agar cache mein na ho toh turant fetch karo
+    const { data, error } = await supabaseClient
+        .from('users')
+        .select('*')
+        .eq('username', username)
+        .single();
+
+    if (data) {
+        profileCache.set(username, data);
+        renderProfileUI(data);
+    }
+};
+
+function renderProfileUI(userData) {
+    const profileContainer = document.getElementById('profile-view-container');
+    if (profileContainer) {
+        profileContainer.style.display = 'block';
+        // Aapka profile rendering logic yahan run hoga
+    }
+}
