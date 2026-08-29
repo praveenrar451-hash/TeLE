@@ -1194,3 +1194,60 @@ document.addEventListener('DOMContentLoaded', () => {
         loginPages.forEach(p => p.style.display = 'none');
     }
 });
+// ==========================================
+// CLEANED & OPTIMIZED CACHE & PRELOAD FIX
+// ==========================================
+
+// Global cache storage (Sirf ek baar declare kiya gaya hai)
+if (typeof profileCache === 'undefined') {
+    window.profileCache = new Map();
+}
+
+// 1. Background Preloader
+window.preloadAllProfiles = async function() {
+    if (!window.supabaseClient) return;
+    const { data, error } = await window.supabaseClient
+        .from('users')
+        .select('*')
+        .limit(50);
+
+    if (data && data.length > 0) {
+        data.forEach(user => {
+            if (user.username) {
+                window.profileCache.set(user.username, user);
+            }
+        });
+    }
+};
+
+window.addEventListener('DOMContentLoaded', () => {
+    window.preloadAllProfiles();
+});
+
+// 2. Lightning Fast Profile Loader
+window.loadUserProfileFast = async function(username) {
+    if (!username) return;
+    
+    if (window.profileCache.has(username)) {
+        renderProfileUI(window.profileCache.get(username));
+        return;
+    }
+
+    const { data, error } = await window.supabaseClient
+        .from('users')
+        .select('*')
+        .eq('username', username)
+        .single();
+
+    if (data) {
+        window.profileCache.set(username, data);
+        renderProfileUI(data);
+    }
+};
+
+function renderProfileUI(userData) {
+    const profileContainer = document.getElementById('profile-view-container');
+    if (profileContainer) {
+        profileContainer.style.display = 'block';
+    }
+}
