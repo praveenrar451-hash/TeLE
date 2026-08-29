@@ -1353,3 +1353,154 @@ function endWaCallScreen(sendSignal = true) {
         overlay.remove();
     }
         }
+// ==========================================
+// CHAT FEATURES MODULE: ONLINE, LAST SEEN, SEEN/UNSEEN & TYPING
+// ==========================================
+
+let waChatChannel = null;
+let typingTimeout = null;
+
+window.addEventListener('load', () => {
+    setTimeout(initChatPresenceAndFeatures, 2000);
+});
+
+function initChatPresenceAndFeatures() {
+    if (typeof supabaseClient === 'undefined' || !supabaseClient) return;
+    const currentUser = localStorage.getItem('currentUsername');
+    if (!currentUser) return;
+
+    // Presence channel for online/offline status and typing
+    waChatChannel = supabaseClient.channel('room_chat_presence', {
+        config: {
+            presence: { key: currentUser },
+            broadcast: { self: false }
+        }
+    });
+
+    waChatChannel
+        .on('presence', { event: 'sync' }, () => {
+            const state = waChatChannel.presenceState();
+            updateAllUsersPresence(state);
+        })
+        .on('broadcast', { event: 'typing-status' }, ({ payload }) => {
+            if (payload.receiver === currentUser) {
+                showTypingIndicatorUI(payload.sender, payload.isTyping);
+            }
+        })
+        .on('broadcast', { event: 'message-seen-update' }, ({ payload }) => {
+            if (payload.receiver === currentUser) {
+                updateMessageSeenUI(payload.sender);
+            }
+        })
+        .subscribe(async (status) => {
+            if (status === 'SUBSCRIBED') {
+                await waChatChannel.track({ online_at: new Date().toISOString(), status: 'online' });
+            }
+        });
+
+    // Auto update offline/last seen on window close
+    window.addEventListener('beforeunload', () => {
+        if (waChatChannel) {
+            waChatChannel.untrack();
+        }
+    });
+}
+
+// 1. Online & Last Seen UI Update Handler
+function updateAllUsersPresence(presenceState) {
+    const userElements = document.querySelectorAll('[data-username]'); // Apne chat list elements me data-username attribute rakhein
+    userElements.forEach(el => {
+        const username = el.getAttribute('data-username');
+        const statusIndicator = el.querySelector('.user-status-dot');
+        const lastSeenText = el.querySelector('.user-last-seen');
+
+        if (presenceState[username]) {
+            // User is Online
+            if (statusIndicator) statusIndicator.style.background = '#00a884';
+            if (lastSeenText) lastSeenText.textContent = 'Online';
+        } else {
+            // User is Offline (Last seen approx)
+            if (statusIndicator) statusIndicator.style.background = '#8696a0';
+            if (lastSeenText) lastSeenText.textContent = 'Offline';
+        }
+    });
+
+    // Agar current active chat user ka status header me update karna ho
+    if (typeof activeChatUser !== 'undefined' && activeChatUser) {
+        const activeHeaderStatus = document.getElementById('active-user-status-text');
+        if (activeHeaderStatus) {
+            if (presenceState[activeChatUser]) {
+                activeHeaderStatus.textContent = 'Online';
+            } else {
+                activeHeaderStatus.textContent = 'Offline';
+            }
+        }
+    }
+}
+
+// 2. Typing Indicator Trigger (Input field me oninput par ye function lagayein)
+function handleTypingInput() {
+    if (typeof activeChatUser === 'undefined' || !activeChatUser) return;
+    const currentUser = localStorage.getItem('currentUsername');
+    if (!currentUser || !waChatChannel) return;
+
+    waChatChannel.send({
+        type: 'broadcast',
+        event: 'typing-status',
+        payload: { sender: currentUser, receiver: activeChatUser, isTyping: true }
+    });
+
+    clearTimeout(typingTimeout);
+    typingTimeout = setTimeout(() => {
+        waChatChannel.send({
+            type: 'broadcast',
+            event: 'typing-status',
+            payload: { sender: currentUser, receiver: activeChatUser, isTyping: false }
+        });
+    }, 1500);
+}
+
+function showTypingIndicatorUI(sender, isTyping) {
+    if (typeof activeChatUser !== 'undefined' && activeChatUser === sender) {
+        const typingEl = document.getElementById('chat-typing-indicator');
+        if (typingEl) {
+            typingEl.style.display = isTyping ? 'block' : 'none';
+            typingEl.textContent = 'typing...';
+        }
+    }
+}
+
+// 3. Seen / Unseen Status Handler (Jab chat open ho ya message read ho)
+function markMessagesAsSeen(targetUser) {
+    const currentUser = localStorage.getItem('currentUsername');
+    if (!currentUser || !supabaseClient) return;
+
+    // Database me messages ko read/seen update karne ka logic (agar table use ho rahi hai)
+    if (typeof supabaseClient !== 'undefined') {
+        supabaseClient
+            .from('messages') // Apni chat table ka naam yahan check kar lein
+            .update({ seen: true })
+            .eq('sender', targetUser)
+            .eq('receiver', currentUser)
+            .eq('seen', false)
+            .then(() => {
+                // Realtime broadcast to sender that messages are seen
+                waChatChannel.send({
+                    type: 'broadcast',
+                    event: 'message-seen-update',
+                    payload: { sender: currentUser, receiver: targetUser }
+                });
+            });
+    }
+}
+
+function updateMessageSeenUI(seenByuser) {
+    if (typeof activeChatUser !== 'undefined' && activeChatUser === seenByuser) {
+        // Double blue ticks icon update karne ke liye
+        const tickIcons = document.querySelectorAll('.message-tick-icon');
+        tickIcons.forEach(icon => {
+            icon.className = 'fa-solid fa-check-double';
+            icon.style.color = '#53bdeb'; // WhatsApp blue tick color
+        });
+    }
+}
