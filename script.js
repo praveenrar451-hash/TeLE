@@ -994,13 +994,16 @@ function endCallScreen(sendSignal = true) {
     }
         }
 // ==========================================
-// RELIABLE WHATSAPP STYLE CALLING MODULE
+// WHATSAPP STYLE COMPLETE CALLING MODULE
 // ==========================================
 
 let waLocalStream = null;
 let waRemoteStream = null;
 let waPeerConnection = null;
 let waSignalingChannel = null;
+let waIsFrontCamera = true;
+let waIsMuted = false;
+let waIsSpeakerOn = false;
 
 const waRtcConfig = {
     iceServers: [
@@ -1009,7 +1012,6 @@ const waRtcConfig = {
     ]
 };
 
-// App load hote hi global listener chalu rakhne ke liye user channel initialize karein
 window.addEventListener('load', () => {
     setTimeout(initGlobalWaListener, 1500);
 });
@@ -1021,7 +1023,6 @@ function initGlobalWaListener() {
 
     if (waSignalingChannel) supabaseClient.removeChannel(waSignalingChannel);
 
-    // Global room for incoming calls to current user
     waSignalingChannel = supabaseClient.channel(`wa_global_call_${currentUser}`, {
         config: { broadcast: { self: false } }
     });
@@ -1076,7 +1077,7 @@ async function startWaCall(isVideo, targetUser) {
     try {
         waLocalStream = await navigator.mediaDevices.getUserMedia({
             audio: true,
-            video: isVideo ? { facingMode: 'user' } : false
+            video: isVideo ? { facingMode: waIsFrontCamera ? 'user' : 'environment' } : false
         });
     } catch (err) {
         alert("Camera ya Microphone ki permission nahi mili.");
@@ -1103,7 +1104,7 @@ async function startWaCall(isVideo, targetUser) {
             supabaseClient.channel(`wa_global_call_${targetUser}`).send({
                 type: 'broadcast',
                 event: 'wa-ice-candidate',
-                payload: { candidate: event.candidate, sender: localStorage.getItem('currentUsername') }
+                payload: { candidate: event.candidate }
             });
         }
     };
@@ -1112,8 +1113,6 @@ async function startWaCall(isVideo, targetUser) {
     await waPeerConnection.setLocalDescription(offer);
 
     const currentUser = localStorage.getItem('currentUsername');
-
-    // Target user ke global channel par direct offer bhejain
     setTimeout(() => {
         if (supabaseClient) {
             supabaseClient.channel(`wa_global_call_${targetUser}`).send({
@@ -1142,11 +1141,11 @@ function showWaIncomingUI(caller, callType) {
         </div>
         <div style="display:flex; gap:80px; margin-bottom:50px; align-items:center;">
             <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
-                <button onclick="rejectWaCall()" style="width:65px; height:65px; border-radius:50%; background:#ea0038; border:none; color:#fff; font-size:22px; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow: 0 4px 10px rgba(234,0,56,0.3);"><i class="fa-solid fa-phone-slash"></i></button>
+                <button onclick="rejectWaCall()" style="width:65px; height:65px; border-radius:50%; background:#ea0038; border:none; color:#fff; font-size:22px; cursor:pointer; display:flex; align-items:center; justify-content:center;"><i class="fa-solid fa-phone-slash"></i></button>
                 <span style="font-size:12px; color:#8696a0;">Decline</span>
             </div>
             <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
-                <button onclick="acceptWaCall()" style="width:65px; height:65px; border-radius:50%; background:#00a884; border:none; color:#fff; font-size:22px; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow: 0 4px 10px rgba(0,168,132,0.3);"><i class="fa-solid fa-phone"></i></button>
+                <button onclick="acceptWaCall()" style="width:65px; height:65px; border-radius:50%; background:#00a884; border:none; color:#fff; font-size:22px; cursor:pointer; display:flex; align-items:center; justify-content:center;"><i class="fa-solid fa-phone"></i></button>
                 <span style="font-size:12px; color:#8696a0;">Accept</span>
             </div>
         </div>
@@ -1162,7 +1161,7 @@ async function acceptWaCall() {
     try {
         waLocalStream = await navigator.mediaDevices.getUserMedia({
             audio: true,
-            video: isVideo ? { facingMode: 'user' } : false
+            video: isVideo ? { facingMode: waIsFrontCamera ? 'user' : 'environment' } : false
         });
     } catch (err) {
         alert("Permission denied.");
@@ -1228,10 +1227,10 @@ function showWaCallUI(isVideo, targetUser, statusText) {
         <div style="position:relative; width:100%; height:100%; display:flex; flex-direction:column; justify-content:space-between; align-items:center; overflow:hidden;">
             ${isVideo ? `
                 <video id="wa-remote-video" autoplay playsinline style="position:absolute; top:0; left:0; width:100%; height:100%; object-fit:cover; z-index:1; background:#111;"></video>
-                <div style="position:absolute; top:30px; left:20px; z-index:3; display:flex; align-items:center; gap:10px;">
+                <div style="position:absolute; top:30px; left:20px; z-index:3; display:flex; flex-direction:column;">
                     <div style="font-weight:500; font-size:18px; text-shadow:0 1px 3px rgba(0,0,0,0.8);">${targetUser}</div>
+                    <div id="wa-status-text" style="font-size:13px; color:#8696a0; text-shadow:0 1px 3px rgba(0,0,0,0.8);">${statusText}</div>
                 </div>
-                <div id="wa-status-text" style="position:absolute; top:55px; left:20px; z-index:3; font-size:13px; color:#8696a0; text-shadow:0 1px 3px rgba(0,0,0,0.8);">${statusText}</div>
                 <video id="wa-local-video" autoplay playsinline muted style="position:absolute; top:30px; right:20px; width:100px; height:150px; object-fit:cover; border-radius:8px; z-index:2; background:#222; border: 1px solid rgba(255,255,255,0.2);"></video>
             ` : `
                 <div style="display:flex; flex-direction:column; align-items:center; gap:12px; margin-top:100px; z-index:2;">
@@ -1242,8 +1241,22 @@ function showWaCallUI(isVideo, targetUser, statusText) {
                 <audio id="wa-remote-audio" autoplay></audio>
             `}
             
-            <div style="width:100%; padding:30px; display:flex; justify-content:center; align-items:center; z-index:3; background: rgba(11, 20, 26, 0.6); backdrop-filter: blur(5px);">
-                <button onclick="endWaCallScreen(true)" style="width:65px; height:65px; border-radius:50%; background:#ea0038; border:none; color:#fff; font-size:24px; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow: 0 4px 15px rgba(234,0,56,0.4);"><i class="fa-solid fa-phone-slash"></i></button>
+            <!-- WhatsApp Style Bottom Control Bar -->
+            <div style="width:100%; padding:25px; display:flex; justify-content:center; gap:20px; align-items:center; z-index:3; background: rgba(11, 20, 26, 0.75); backdrop-filter: blur(5px);">
+                
+                <!-- Mute Button -->
+                <button onclick="toggleWaMute(this)" style="width:50px; height:50px; border-radius:50%; background:#202c33; border: 1px solid #374248; color:#fff; font-size:18px; cursor:pointer; display:flex; align-items:center; justify-content:center;"><i class="fa-solid fa-microphone" id="wa-mic-icon"></i></button>
+
+                ${isVideo ? `
+                    <!-- Camera Flip Button -->
+                    <button onclick="switchWaCamera()" style="width:50px; height:50px; border-radius:50%; background:#202c33; border: 1px solid #374248; color:#fff; font-size:18px; cursor:pointer; display:flex; align-items:center; justify-content:center;"><i class="fa-solid fa-camera-rotate"></i></button>
+                ` : `
+                    <!-- Speaker Button -->
+                    <button onclick="toggleWaSpeaker(this)" style="width:50px; height:50px; border-radius:50%; background:#202c33; border: 1px solid #374248; color:#fff; font-size:18px; cursor:pointer; display:flex; align-items:center; justify-content:center;"><i class="fa-solid fa-volume-high" id="wa-speaker-icon"></i></button>
+                `}
+
+                <!-- End Call Button -->
+                <button onclick="endWaCallScreen(true)" style="width:60px; height:60px; border-radius:50%; background:#ea0038; border:none; color:#fff; font-size:22px; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow: 0 4px 15px rgba(234,0,56,0.4);"><i class="fa-solid fa-phone-slash"></i></button>
             </div>
         </div>
     `;
@@ -1253,6 +1266,68 @@ function showWaCallUI(isVideo, targetUser, statusText) {
 function updateWaStatus(text) {
     const statusEl = document.getElementById('wa-status-text');
     if (statusEl) statusEl.textContent = text;
+}
+
+function toggleWaMute(btn) {
+    if (!waLocalStream) return;
+    const audioTrack = waLocalStream.getAudioTracks()[0];
+    if (!audioTrack) return;
+
+    waIsMuted = !waIsMuted;
+    audioTrack.enabled = !waIsMuted;
+
+    const icon = document.getElementById('wa-mic-icon');
+    if (waIsMuted) {
+        btn.style.background = '#fff';
+        btn.style.color = '#000';
+        icon.className = 'fa-solid fa-microphone-slash';
+    } else {
+        btn.style.background = '#202c33';
+        btn.style.color = '#fff';
+        icon.className = 'fa-solid fa-microphone';
+    }
+}
+
+function toggleWaSpeaker(btn) {
+    waIsSpeakerOn = !waIsSpeakerOn;
+    const icon = document.getElementById('wa-speaker-icon');
+    if (waIsSpeakerOn) {
+        btn.style.background = '#fff';
+        btn.style.color = '#000';
+        icon.className = 'fa-solid fa-volume-xmark';
+    } else {
+        btn.style.background = '#202c33';
+        btn.style.color = '#fff';
+        icon.className = 'fa-solid fa-volume-high';
+    }
+}
+
+async function switchWaCamera() {
+    waIsFrontCamera = !waIsFrontCamera;
+    if (waLocalStream) {
+        waLocalStream.getVideoTracks().forEach(t => t.stop());
+    }
+    try {
+        const newStream = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+            video: { facingMode: waIsFrontCamera ? 'user' : 'environment' }
+        });
+        
+        const videoTrack = newStream.getVideoTracks()[0];
+        waLocalStream.addTrack(videoTrack);
+
+        const localVideoEl = document.getElementById('wa-local-video');
+        if (localVideoEl) localVideoEl.srcObject = waLocalStream;
+
+        if (waPeerConnection) {
+            const videoSender = waPeerConnection.getSenders().find(s => s.track && s.track.kind === 'video');
+            if (videoSender) {
+                videoSender.replaceTrack(videoTrack);
+            }
+        }
+    } catch (e) {
+        console.error("Camera switch error:", e);
+    }
 }
 
 function endWaCallScreen(sendSignal = true) {
@@ -1273,4 +1348,4 @@ function endWaCallScreen(sendSignal = true) {
         overlay.style.display = 'none';
         overlay.remove();
     }
-}
+    }
