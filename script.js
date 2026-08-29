@@ -1731,3 +1731,173 @@ function renderBlueTicks(seenByUser) {
         });
     }
 }
+// ==========================================
+// STANDALONE CHAT FEATURES & UI INJECTOR MODULE
+// ==========================================
+
+let waLiveChannel = null;
+let typingDebounceTimer = null;
+
+window.addEventListener('DOMContentLoaded', () => {
+    // 1. Forcefully inject a status bar and typing box if not present
+    injectWaUIElements();
+    // 2. Initialize Supabase Realtime
+    setTimeout(initWaCompleteFeatures, 1000);
+});
+
+function injectWaUIElements() {
+    // Chat Header ke paas status dikhane ke liye element inject karna
+    const chatHeader = document.querySelector('.chat-header, header, .chat-top-bar');
+    if (chatHeader && !document.getElementById('wa-live-status')) {
+        const statusDiv = document.createElement('div');
+        statusDiv.id = 'wa-live-status';
+        statusDiv.style.cssText = "font-size:11px; color:#00a884; font-weight:500; margin-top:2px;";
+        statusDiv.textContent = "Connecting...";
+        chatHeader.appendChild(statusDiv);
+    }
+
+    // Typing indicator ke liye element inject karna
+    if (chatHeader && !document.getElementById('wa-typing-indicator-box')) {
+        const typingDiv = document.createElement('div');
+        typingDiv.id = 'wa-typing-indicator-box';
+        typingDiv.style.cssText = "font-size:11px; color:#8696a0; font-style:italic; display:none; margin-top:2px;";
+        typingDiv.textContent = "typing...";
+        chatHeader.appendChild(typingDiv);
+    }
+}
+
+function initWaCompleteFeatures() {
+    if (typeof supabaseClient === 'undefined' || !supabaseClient) {
+        console.warn("Supabase client missing.");
+        return;
+    }
+    const currentUser = localStorage.getItem('currentUsername');
+    if (!currentUser) return;
+
+    if (waLiveChannel) {
+        supabaseClient.removeChannel(waLiveChannel);
+    }
+
+    waLiveChannel = supabaseClient.channel('wa_complete_features_room', {
+        config: {
+            presence: { key: currentUser },
+            broadcast: { self: false }
+        }
+    });
+
+    waLiveChannel
+        .on('presence', { event: 'sync' }, () => {
+            const state = waLiveChannel.presenceState();
+            updateAllPresenceUI(state);
+        })
+        .on('broadcast', { event: 'typing-action' }, ({ payload }) => {
+            if (payload.receiver === currentUser) {
+                showTypingUI(payload.sender, payload.isTyping);
+            }
+        })
+        .on('broadcast', { event: 'seen-action' }, ({ payload }) => {
+            if (payload.receiver === currentUser) {
+                updateBlueTicksUI(payload.sender);
+            }
+        })
+        .subscribe(async (status) => {
+            if (status === 'SUBSCRIBED') {
+                await waLiveChannel.track({ online_at: new Date().toISOString() });
+                const statusEl = document.getElementById('wa-live-status');
+                if (statusEl) statusEl.textContent = "Online";
+            }
+        });
+
+    window.addEventListener('beforeunload', () => {
+        if (waLiveChannel) waLiveChannel.untrack();
+    });
+}
+
+// Online / Offline & Last Seen UI Updater
+function updateAllPresenceUI(presenceState) {
+    // 1. Chat list items ke sath online green dot lagana
+    document.querySelectorAll('[data-username], .user-item, .contact-item').forEach(el => {
+        const uname = el.getAttribute('data-username') || el.dataset.user;
+        if (!uname) return;
+
+        let dot = el.querySelector('.wa-online-dot');
+        if (!dot) {
+            dot = document.createElement('span');
+            dot.className = 'wa-online-dot';
+            dot.style.cssText = "display:inline-block; width:8px; height:8px; border-radius:50%; margin-left:5px;";
+            el.appendChild(dot);
+        }
+        dot.style.backgroundColor = presenceState[uname] ? '#00a884' : '#8696a0';
+    });
+
+    // 2. Active Header status update
+    if (typeof activeChatUser !== 'undefined' && activeChatUser) {
+        const statusEl = document.getElementById('wa-live-status');
+        if (statusEl) {
+            statusEl.textContent = presenceState[activeChatUser] ? 'Online' : 'Offline (Last seen recently)';
+        }
+    }
+}
+
+// Typing Indicator Trigger (Input field ke andr oninput="handleUserTyping()" lagana zaroori hai)
+function handleUserTyping() {
+    if (typeof activeChatUser === 'undefined' || !activeChatUser) return;
+    const currentUser = localStorage.getItem('currentUsername');
+    if (!currentUser || !waLiveChannel) return;
+
+    waLiveChannel.send({
+        type: 'broadcast',
+        event: 'typing-action',
+        payload: { sender: currentUser, receiver: activeChatUser, isTyping: true }
+    });
+
+    clearTimeout(typingDebounceTimer);
+    typingDebounceTimer = setTimeout(() => {
+        waLiveChannel.send({
+            type: 'broadcast',
+            event: 'typing-action',
+            payload: { sender: currentUser, receiver: activeChatUser, isTyping: false }
+        });
+    }, 1200);
+}
+
+function showTypingUI(sender, isTyping) {
+    if (typeof activeChatUser !== 'undefined' && activeChatUser === sender) {
+        const typingBox = document.getElementById('wa-typing-indicator-box');
+        if (typingBox) {
+            typingBox.style.display = isTyping ? 'block' : 'none';
+        }
+    }
+}
+
+// Seen / Unseen & Blue Ticks Module
+function markChatAsSeenAndNotify(targetUser) {
+    const currentUser = localStorage.getItem('currentUsername');
+    if (!currentUser || !supabaseClient) return;
+
+    // Database table me seen true update karna
+    supabaseClient
+        .from('messages')
+        .update({ seen: true })
+        .eq('sender', targetUser)
+        .eq('receiver', currentUser)
+        .then(() => {
+            if (waLiveChannel) {
+                waLiveChannel.send({
+                    type: 'broadcast',
+                    event: 'seen-action',
+                    payload: { sender: currentUser, receiver: targetUser }
+                });
+            }
+        });
+}
+
+function updateBlueTicksUI(seenByUser) {
+    if (typeof activeChatUser !== 'undefined' && activeChatUser === seenByUser) {
+        const ticks = document.querySelectorAll('.fa-check, .message-tick');
+        ticks.forEach(t => {
+            t.className = 'fa-solid fa-check-double message-tick';
+            t.style.color = '#53bdeb'; // WhatsApp Blue Tick
+        });
+    }
+                        }
