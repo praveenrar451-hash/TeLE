@@ -994,7 +994,7 @@ function endCallScreen(sendSignal = true) {
     }
         }
 // ==========================================
-// WHATSAPP STYLE CALLING MODULE (END OF FILE)
+// RELIABLE WHATSAPP STYLE CALLING MODULE
 // ==========================================
 
 let waLocalStream = null;
@@ -1009,7 +1009,51 @@ const waRtcConfig = {
     ]
 };
 
-// Chat UI se ye functions call honge
+// App load hote hi global listener chalu rakhne ke liye user channel initialize karein
+window.addEventListener('load', () => {
+    setTimeout(initGlobalWaListener, 1500);
+});
+
+function initGlobalWaListener() {
+    if (typeof supabaseClient === 'undefined' || !supabaseClient) return;
+    const currentUser = localStorage.getItem('currentUsername');
+    if (!currentUser) return;
+
+    if (waSignalingChannel) supabaseClient.removeChannel(waSignalingChannel);
+
+    // Global room for incoming calls to current user
+    waSignalingChannel = supabaseClient.channel(`wa_global_call_${currentUser}`, {
+        config: { broadcast: { self: false } }
+    });
+
+    waSignalingChannel
+        .on('broadcast', { event: 'wa-call-offer' }, async ({ payload }) => {
+            if (payload.receiver === currentUser) {
+                window.waPendingOffer = payload.offer;
+                window.waCallerName = payload.caller;
+                window.waCallType = payload.callType;
+                showWaIncomingUI(payload.caller, payload.callType);
+            }
+        })
+        .on('broadcast', { event: 'wa-call-answer' }, async ({ payload }) => {
+            if (waPeerConnection && waPeerConnection.signalingState === 'have-local-offer') {
+                await waPeerConnection.setRemoteDescription(new RTCSessionDescription(payload.answer));
+                updateWaStatus("Connected");
+            }
+        })
+        .on('broadcast', { event: 'wa-ice-candidate' }, async ({ payload }) => {
+            if (waPeerConnection && payload.candidate) {
+                try {
+                    await waPeerConnection.addIceCandidate(new RTCIceCandidate(payload.candidate));
+                } catch (e) {}
+            }
+        })
+        .on('broadcast', { event: 'wa-call-ended' }, () => {
+            endWaCallScreen(false);
+        })
+        .subscribe();
+}
+
 function startAudioCall() {
     if (typeof activeChatUser !== 'undefined' && activeChatUser) {
         startWaCall(false, activeChatUser);
@@ -1026,49 +1070,7 @@ function startVideoCall() {
     }
 }
 
-function initWaSignaling(roomUser) {
-    if (typeof supabaseClient === 'undefined' || !supabaseClient) return;
-    if (waSignalingChannel) supabaseClient.removeChannel(waSignalingChannel);
-
-    const currentUser = localStorage.getItem('currentUsername');
-    if (!currentUser || !roomUser) return;
-    
-    const roomName = `wa_call_${[currentUser, roomUser].sort().join('_')}`;
-
-    waSignalingChannel = supabaseClient.channel(roomName, {
-        config: { broadcast: { self: false } }
-    });
-
-    waSignalingChannel
-        .on('broadcast', { event: 'wa-call-offer' }, async ({ payload }) => {
-            if (payload.receiver === currentUser) {
-                window.waPendingOffer = payload.offer;
-                window.waCallerName = payload.caller;
-                window.waCallType = payload.callType;
-                showWaIncomingUI(payload.caller, payload.callType);
-            }
-        })
-        .on('broadcast', { event: 'wa-call-answer' }, async ({ payload }) => {
-            if (waPeerConnection && waPeerConnection.signalingState === 'have-local-offer') {
-                await waPeerConnection.setRemoteDescription(new RTCSessionDescription(payload.answer));
-                updateWaStatus("Ringing...");
-            }
-        })
-        .on('broadcast', { event: 'wa-ice-candidate' }, async ({ payload }) => {
-            if (waPeerConnection && payload.candidate) {
-                try {
-                    await waPeerConnection.addIceCandidate(new RTCIceCandidate(payload.candidate));
-                } catch (e) {}
-            }
-        })
-        .on('broadcast', { event: 'wa-call-ended' }, () => {
-            endWaCallScreen(false);
-        })
-        .subscribe();
-}
-
 async function startWaCall(isVideo, targetUser) {
-    initWaSignaling(targetUser);
     showWaCallUI(isVideo, targetUser, "Calling...");
 
     try {
@@ -1097,11 +1099,11 @@ async function startWaCall(isVideo, targetUser) {
     };
 
     waPeerConnection.onicecandidate = event => {
-        if (event.candidate && waSignalingChannel) {
-            waSignalingChannel.send({
+        if (event.candidate && supabaseClient) {
+            supabaseClient.channel(`wa_global_call_${targetUser}`).send({
                 type: 'broadcast',
                 event: 'wa-ice-candidate',
-                payload: { candidate: event.candidate }
+                payload: { candidate: event.candidate, sender: localStorage.getItem('currentUsername') }
             });
         }
     };
@@ -1110,15 +1112,17 @@ async function startWaCall(isVideo, targetUser) {
     await waPeerConnection.setLocalDescription(offer);
 
     const currentUser = localStorage.getItem('currentUsername');
+
+    // Target user ke global channel par direct offer bhejain
     setTimeout(() => {
-        if (waSignalingChannel) {
-            waSignalingChannel.send({
+        if (supabaseClient) {
+            supabaseClient.channel(`wa_global_call_${targetUser}`).send({
                 type: 'broadcast',
                 event: 'wa-call-offer',
                 payload: { caller: currentUser, receiver: targetUser, offer, callType: isVideo ? 'video' : 'audio' }
             });
         }
-    }, 1000);
+    }, 500);
 }
 
 function showWaIncomingUI(caller, callType) {
@@ -1134,7 +1138,7 @@ function showWaIncomingUI(caller, callType) {
         <div style="display:flex; flex-direction:column; align-items:center; gap:15px; margin-top:50px;">
             <div style="width:110px; height:110px; border-radius:50%; background:#202c33; display:flex; align-items:center; justify-content:center; font-size:45px; color:#8696a0; border: 2px solid #2a3942;">${caller.charAt(0).toUpperCase()}</div>
             <h2 style="font-size:26px; font-weight:500; margin:0;">${caller}</h2>
-            <p style="font-size:15px; color:#8696a0; margin:0;">WhatsApp ${callType} call...</p>
+            <p style="font-size:15px; color:#8696a0; margin:0;">Incoming WhatsApp ${callType} call...</p>
         </div>
         <div style="display:flex; gap:80px; margin-bottom:50px; align-items:center;">
             <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
@@ -1153,7 +1157,6 @@ function showWaIncomingUI(caller, callType) {
 async function acceptWaCall() {
     const caller = window.waCallerName;
     const isVideo = window.waCallType === 'video';
-    initWaSignaling(caller);
     showWaCallUI(isVideo, caller, "Connected");
 
     try {
@@ -1181,18 +1184,33 @@ async function acceptWaCall() {
         if (remoteAudioEl) remoteAudioEl.srcObject = waRemoteStream;
     };
 
+    waPeerConnection.onicecandidate = event => {
+        if (event.candidate && supabaseClient) {
+            supabaseClient.channel(`wa_global_call_${caller}`).send({
+                type: 'broadcast',
+                event: 'wa-ice-candidate',
+                payload: { candidate: event.candidate }
+            });
+        }
+    };
+
     await waPeerConnection.setRemoteDescription(new RTCSessionDescription(window.waPendingOffer));
     const answer = await waPeerConnection.createAnswer();
     await waPeerConnection.setLocalDescription(answer);
 
-    if (waSignalingChannel) {
-        waSignalingChannel.send({ type: 'broadcast', event: 'wa-call-answer', payload: { answer } });
+    if (supabaseClient) {
+        supabaseClient.channel(`wa_global_call_${caller}`).send({ 
+            type: 'broadcast', 
+            event: 'wa-call-answer', 
+            payload: { answer } 
+        });
     }
 }
 
 function rejectWaCall() {
-    if (waSignalingChannel) {
-        waSignalingChannel.send({ type: 'broadcast', event: 'wa-call-ended', payload: {} });
+    const caller = window.waCallerName;
+    if (supabaseClient && caller) {
+        supabaseClient.channel(`wa_global_call_${caller}`).send({ type: 'broadcast', event: 'wa-call-ended', payload: {} });
     }
     endWaCallScreen(false);
 }
@@ -1238,8 +1256,9 @@ function updateWaStatus(text) {
 }
 
 function endWaCallScreen(sendSignal = true) {
-    if (sendSignal && waSignalingChannel) {
-        waSignalingChannel.send({ type: 'broadcast', event: 'wa-call-ended', payload: {} });
+    const targetUser = window.waCallerName || (typeof activeChatUser !== 'undefined' ? activeChatUser : null);
+    if (sendSignal && supabaseClient && targetUser) {
+        supabaseClient.channel(`wa_global_call_${targetUser}`).send({ type: 'broadcast', event: 'wa-call-ended', payload: {} });
     }
     if (waLocalStream) {
         waLocalStream.getTracks().forEach(t => t.stop());
