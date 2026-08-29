@@ -27,10 +27,10 @@ window.addEventListener('DOMContentLoaded', () => {
         loadFeedPosts();
     }
     
-    // Initialize Reels Upload & Chat Realtime Features on load
     initReelsUploadFeature();
     restoreChatMessagesFromCache();
     setTimeout(initGlobalWaListener, 1500);
+    initGlobalRealtimeFeedListener();
 });
 
 // ==========================================
@@ -217,10 +217,20 @@ async function submitNewPost() {
     }
 
     if (supabaseClient) {
-        await supabaseClient.from('posts').insert([{ username, image_url: selectedPostImageBase64, caption, is_reel: false }]);
+        const { error } = await supabaseClient.from('posts').insert([{ 
+            username, 
+            image_url: selectedPostImageBase64, 
+            caption, 
+            is_reel: false,
+            created_at: new Date().toISOString()
+        }]);
+
+        if (error) {
+            alert("Error posting: " + error.message);
+            return;
+        }
     }
 
-    alert("Posted successfully in real-time!");
     selectedPostImageBase64 = "";
     if (captionEl) captionEl.value = '';
     
@@ -237,7 +247,6 @@ async function submitNewPost() {
     loadFeedPosts();
 }
 
-// REELS UPLOAD MODULE WITH TOP CORNER PLUS (+) ICON
 function initReelsUploadFeature() {
     const reelsView = document.getElementById('reels-container') || document.querySelector('.reels-view, #reels');
     if (reelsView) {
@@ -319,31 +328,51 @@ async function loadFeedPosts() {
 
     feedList.innerHTML = '';
     posts.forEach(post => {
-        const userAvatar = usersMap[post.username] || '';
-        const avatarStyle = userAvatar ? `background-image: url('${userAvatar}');` : '';
-
-        const card = document.createElement('div');
-        card.className = 'post-card';
-        card.innerHTML = `
-            <div class="post-header" onclick="viewUserProfile('${post.username}')" style="cursor:pointer;">
-                <div class="avatar" style="width: 32px; height: 32px; font-size: 13px; ${avatarStyle}">${userAvatar ? '' : post.username.charAt(0).toUpperCase()}</div>
-                <b style="font-size: 14px;">${post.username}</b>
-            </div>
-            <img src="${post.image_url}" class="post-img">
-            <div class="post-actions">
-                <div>
-                    <i class="fa-regular fa-heart" style="margin-right: 16px;" onclick="this.classList.toggle('fa-regular'); this.classList.toggle('fa-solid'); this.style.color = this.classList.contains('fa-solid') ? '#ed4956' : '#fff';"></i>
-                    <i class="fa-regular fa-comment" style="margin-right: 16px;"></i>
-                    <i class="fa-regular fa-paper-plane" onclick="openChatWith('${post.username}')"></i>
-                </div>
-                <i class="fa-regular fa-bookmark" onclick="this.classList.toggle('fa-regular'); this.classList.toggle('fa-solid');"></i>
-            </div>
-            <div class="post-details">
-                <p><b>${post.username}</b> ${post.caption || ''}</p>
-            </div>
-        `;
-        feedList.appendChild(card);
+        renderPostCard(post, usersMap[post.username], feedList);
     });
+}
+
+function renderPostCard(post, userAvatar, container) {
+    const avatarStyle = userAvatar ? `background-image: url('${userAvatar}');` : '';
+    const card = document.createElement('div');
+    card.className = 'post-card';
+    card.innerHTML = `
+        <div class="post-header" onclick="viewUserProfile('${post.username}')" style="cursor:pointer;">
+            <div class="avatar" style="width: 32px; height: 32px; font-size: 13px; ${avatarStyle}">${userAvatar ? '' : post.username.charAt(0).toUpperCase()}</div>
+            <b style="font-size: 14px;">${post.username}</b>
+        </div>
+        <img src="${post.image_url}" class="post-img">
+        <div class="post-actions">
+            <div>
+                <i class="fa-regular fa-heart" style="margin-right: 16px;" onclick="this.classList.toggle('fa-regular'); this.classList.toggle('fa-solid'); this.style.color = this.classList.contains('fa-solid') ? '#ed4956' : '#fff';"></i>
+                <i class="fa-regular fa-comment" style="margin-right: 16px;"></i>
+                <i class="fa-regular fa-paper-plane" onclick="openChatWith('${post.username}')"></i>
+            </div>
+            <i class="fa-regular fa-bookmark" onclick="this.classList.toggle('fa-regular'); this.classList.toggle('fa-solid');"></i>
+        </div>
+        <div class="post-details">
+            <p><b>${post.username}</b> ${post.caption || ''}</p>
+        </div>
+    `;
+    container.prepend(card);
+}
+
+function initGlobalRealtimeFeedListener() {
+    if (!supabaseClient) return;
+    supabaseClient
+        .channel('public:posts')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, payload => {
+            const newPost = payload.new;
+            if (!newPost.is_reel) {
+                const feedList = document.getElementById('feed-posts-list');
+                if (feedList) {
+                    const placeholder = feedList.querySelector('div[style*="text-align:center"]');
+                    if (placeholder) placeholder.remove();
+                    renderPostCard(newPost, '', feedList);
+                }
+            }
+        })
+        .subscribe();
 }
 
 // ==========================================
@@ -381,8 +410,6 @@ async function handleUserSearch(query) {
     }
 }
 
-let viewingTargetUser = '';
-
 async function viewUserProfile(username) {
     const currentUser = localStorage.getItem('currentUsername');
     if (username === currentUser) {
@@ -390,7 +417,6 @@ async function viewUserProfile(username) {
         return;
     }
 
-    viewingTargetUser = username;
     const topEl = document.getElementById('other-profile-username-top');
     const nameEl = document.getElementById('other-profile-display-name');
     if (topEl) topEl.textContent = username;
@@ -508,7 +534,6 @@ async function openChatWith(username) {
     switchView('chatroom-container');
     
     injectChatHeaderUI(username);
-    
     await loadChatMessages();
     setupWaCompleteFeatures(username);
     markChatAsSeenAndNotify(username);
@@ -615,7 +640,6 @@ function appendMessageBubble(msg, currentUser) {
     msgContainer.scrollTop = msgContainer.scrollHeight;
 }
 
-// Persistent Chat Cache
 setInterval(() => {
     try {
         const chatContainer = document.getElementById('chatroom-messages');
@@ -644,7 +668,7 @@ function setupWaCompleteFeatures(targetUser) {
         supabaseClient.removeChannel(waLiveChannel);
     }
 
-    waLiveChannel = supabaseClient.channel('wa_complete_features_room', {
+    waLiveChannel = supabaseClient.channel('wa_complete_features_room_' + [currentUser, targetUser].sort().join('_'), {
         config: {
             presence: { key: currentUser },
             broadcast: { self: false }
@@ -776,7 +800,7 @@ async function sendChatMessage() {
 
     inputEl.value = '';
     const { data, error } = await supabaseClient.from('messages').insert([
-        { sender: currentUser, receiver: activeChatUser, message: text, type: 'text', seen: false }
+        { sender: currentUser, receiver: activeChatUser, message: text, type: 'text', seen: false, created_at: new Date().toISOString() }
     ]).select();
 
     if (!error && data && data.length > 0) {
@@ -795,7 +819,7 @@ async function sendChatPhoto(event) {
 
         if (supabaseClient) {
             const { data, error } = await supabaseClient.from('messages').insert([
-                { sender: currentUser, receiver: activeChatUser, message: imgSrc, type: 'image', seen: false }
+                { sender: currentUser, receiver: activeChatUser, message: imgSrc, type: 'image', seen: false, created_at: new Date().toISOString() }
             ]).select();
 
             if (!error && data && data.length > 0) {
@@ -815,7 +839,6 @@ let waPeerConnection = null;
 let waSignalingChannel = null;
 let waIsFrontCamera = true;
 let waIsMuted = false;
-let waIsSpeakerOn = false;
 
 const waRtcConfig = {
     iceServers: [
@@ -1127,4 +1150,4 @@ function endWaCallScreen(sendSignal = true) {
         overlay.style.display = 'none';
         overlay.remove();
     }
-        }
+                                }
