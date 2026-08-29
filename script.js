@@ -1901,3 +1901,47 @@ function updateBlueTicksUI(seenByUser) {
         });
     }
                         }
+// Typing Indicator Module - Paste this at the very end of your script.js
+
+let userTypingTimer = null;
+
+// Call this function on chat input keydown (e.g., oninput="handleTypingTrigger()")
+function handleTypingTrigger() {
+    if (typeof activeChatUser === 'undefined' || !activeChatUser) return;
+    const currentUser = localStorage.getItem('currentUsername');
+    if (!currentUser || typeof mainChatChannel === 'undefined' || !mainChatChannel) return;
+
+    mainChatChannel.send({
+        type: 'broadcast',
+        event: 'user-typing-event',
+        payload: { sender: currentUser, receiver: activeChatUser, isTyping: true }
+    });
+
+    clearTimeout(userTypingTimer);
+    userTypingTimer = setTimeout(() => {
+        mainChatChannel.send({
+            type: 'broadcast',
+            event: 'user-typing-event',
+            payload: { sender: currentUser, receiver: activeChatUser, isTyping: false }
+        });
+    }, 1200);
+}
+
+function renderTypingIndicator(sender, isTyping) {
+    if (typeof activeChatUser !== 'undefined' && activeChatUser === sender) {
+        let typingIndicatorEl = document.getElementById('chat-typing-status-bubble');
+        const chatHeader = document.querySelector('.chat-header, #chatroom-container .top-bar');
+        
+        if (!typingIndicatorEl && chatHeader) {
+            typingIndicatorEl = document.createElement('div');
+            typingIndicatorEl.id = 'chat-typing-status-bubble';
+            typingIndicatorEl.style.cssText = "font-size:11px; color:#00a884; font-style:italic; margin-left:10px;";
+            chatHeader.appendChild(typingIndicatorEl);
+        }
+
+        if (typingIndicatorEl) {
+            typingIndicatorEl.style.display = isTyping ? 'inline-block' : 'none';
+            typingIndicatorEl.textContent = 'typing...';
+        }
+    }
+}
