@@ -206,6 +206,59 @@ function previewSelectedImage(event) {
     reader.readAsDataURL(file);
 }
 
+// ==========================================
+// COMPRESSED & FIXED POST UPLOAD MODULE
+// ==========================================
+let selectedPostImageBase64 = "";
+
+function previewSelectedImage(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const img = new Image();
+        img.src = e.target.result;
+        img.onload = function() {
+            // Image ko optimize/resize karna taaki upload size chota rahe
+            const canvas = document.createElement('canvas');
+            const MAX_WIDTH = 800;
+            const MAX_HEIGHT = 800;
+            let width = img.width;
+            let height = img.height;
+
+            if (width > height) {
+                if (width > MAX_WIDTH) {
+                    height *= MAX_WIDTH / width;
+                    width = MAX_WIDTH;
+                }
+            } else {
+                if (height > MAX_HEIGHT) {
+                    width *= MAX_HEIGHT / height;
+                    height = MAX_HEIGHT;
+                }
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+
+            // Compress karke Base64 banana (JPEG format quality 0.8)
+            selectedPostImageBase64 = canvas.toDataURL('image/jpeg', 0.8);
+
+            const previewBox = document.getElementById('post-preview-box');
+            if (previewBox) {
+                previewBox.style.backgroundImage = `url('${selectedPostImageBase64}')`;
+                previewBox.style.backgroundSize = 'cover';
+                previewBox.style.backgroundPosition = 'center';
+                previewBox.innerHTML = '';
+            }
+        };
+    };
+    reader.readAsDataURL(file);
+}
+
 async function submitNewPost() {
     const captionEl = document.getElementById('create-caption');
     const caption = captionEl ? captionEl.value.trim() : '';
@@ -216,17 +269,34 @@ async function submitNewPost() {
         return;
     }
 
+    if (!username) {
+        alert("User session not found. Please login again.");
+        return;
+    }
+
     if (supabaseClient) {
-        const { error } = await supabaseClient.from('posts').insert([{ 
-            username, 
-            image_url: selectedPostImageBase64, 
-            caption, 
+        // UI par turant dikhane ke liye temporary post object
+        const tempPost = {
+            username: username,
+            image_url: selectedPostImageBase64,
+            caption: caption,
             is_reel: false,
             created_at: new Date().toISOString()
-        }]);
+        };
+
+        const feedList = document.getElementById('feed-posts-list');
+        if (feedList) {
+            const placeholder = feedList.querySelector('div[style*="text-align:center"]');
+            if (placeholder) placeholder.remove();
+            renderPostCard(tempPost, '', feedList);
+        }
+
+        // Background mein database par insert karna
+        const { error } = await supabaseClient.from('posts').insert([tempPost]);
 
         if (error) {
-            alert("Error posting: " + error.message);
+            console.error("Supabase Post Error:", error);
+            alert("Upload failed: " + error.message);
             return;
         }
     }
