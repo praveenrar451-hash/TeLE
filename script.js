@@ -1013,3 +1013,61 @@ function showActiveCallUI(type, targetUser, isVideo) {
         </div>
     `;
 }
+// ==========================================
+// SPEED OPTIMIZATION & CACHING (Fast Loading)
+// ==========================================
+
+const profileCache = new Map();
+
+// Instant Profile & Page Loader (0 delay on re-tap)
+window.loadUserProfileFast = async function(username) {
+    if (!username) return;
+    
+    // Agar data cache mein pehle se hai toh turant dikhao (No waiting)
+    if (profileCache.has(username)) {
+        renderProfileUI(profileCache.get(username));
+        return;
+    }
+
+    // Network se fast fetch karo limit ke sath
+    const { data, error } = await supabaseClient
+        .from('users')
+        .select('*')
+        .eq('username', username)
+        .single();
+
+    if (data) {
+        profileCache.set(username, data); // Cache mein save kar lo
+        renderProfileUI(data);
+    }
+};
+
+function renderProfileUI(userData) {
+    const profileContainer = document.getElementById('profile-view-container');
+    if (profileContainer) {
+        profileContainer.style.display = 'block';
+    }
+}
+
+// Fast Post / Category / User List Loader with Limit
+window.loadChatUsersFast = async function() {
+    const cacheKey = 'chat_users_list';
+    if (profileCache.has(cacheKey)) {
+        displayUserList(profileCache.get(cacheKey));
+    }
+
+    const { data, error } = await supabaseClient
+        .from('users')
+        .select('username, avatar, status')
+        .limit(20); // Limit lagane se data turant load hota hai
+
+    if (data) {
+        profileCache.set(cacheKey, data);
+        displayUserList(data);
+    }
+};
+
+function displayUserList(users) {
+    const listEl = document.getElementById('chat-users-list');
+    if (!listEl) return;
+}
