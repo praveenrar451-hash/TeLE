@@ -1219,21 +1219,25 @@ function showWaCallUI(isVideo, targetUser, statusText) {
     if (!overlay) {
         overlay = document.createElement('div');
         overlay.id = 'wa-call-overlay';
-        overlay.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:#0b141a; z-index:9999; display:flex; flex-direction:column; justify-content:space-between; align-items:center; color:#fff; font-family:sans-serif;";
+        overlay.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:#0b141a; z-index:9999; overflow:hidden; font-family:sans-serif;";
         document.body.appendChild(overlay);
     }
 
     overlay.innerHTML = `
-        <div style="position:relative; width:100%; height:100%; display:flex; flex-direction:column; justify-content:space-between; align-items:center; overflow:hidden;">
+        <div style="position:relative; width:100%; height:100%; background:#0b141a;">
             ${isVideo ? `
                 <video id="wa-remote-video" autoplay playsinline style="position:absolute; top:0; left:0; width:100%; height:100%; object-fit:cover; z-index:1; background:#111;"></video>
-                <div style="position:absolute; top:30px; left:20px; z-index:3; display:flex; flex-direction:column;">
-                    <div style="font-weight:500; font-size:18px; text-shadow:0 1px 3px rgba(0,0,0,0.8);">${targetUser}</div>
-                    <div id="wa-status-text" style="font-size:13px; color:#8696a0; text-shadow:0 1px 3px rgba(0,0,0,0.8);">${statusText}</div>
+                
+                <!-- Top Info Overlay -->
+                <div style="position:absolute; top:30px; left:20px; z-index:3; display:flex; flex-direction:column; text-shadow:0 1px 4px rgba(0,0,0,0.8);">
+                    <div style="font-weight:500; font-size:18px; color:#fff;">${targetUser}</div>
+                    <div id="wa-status-text" style="font-size:13px; color:#8696a0;">${statusText}</div>
                 </div>
-                <video id="wa-local-video" autoplay playsinline muted style="position:absolute; top:30px; right:20px; width:100px; height:150px; object-fit:cover; border-radius:8px; z-index:2; background:#222; border: 1px solid rgba(255,255,255,0.2);"></video>
+
+                <!-- Local Video PiP -->
+                <video id="wa-local-video" autoplay playsinline muted style="position:absolute; top:30px; right:20px; width:100px; height:150px; object-fit:cover; border-radius:12px; z-index:2; background:#222; border: 2px solid rgba(255,255,255,0.2); box-shadow: 0 4px 10px rgba(0,0,0,0.5);"></video>
             ` : `
-                <div style="display:flex; flex-direction:column; align-items:center; gap:12px; margin-top:100px; z-index:2;">
+                <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; gap:12px; z-index:2; color:#fff;">
                     <div style="width:120px; height:120px; border-radius:50%; background:#202c33; display:flex; align-items:center; justify-content:center; font-size:50px; color:#8696a0; border: 2px solid #2a3942;">${targetUser.charAt(0).toUpperCase()}</div>
                     <h2 style="font-size:26px; font-weight:500; margin:0;">${targetUser}</h2>
                     <p style="font-size:14px; color:#8696a0; margin:0;" id="wa-status-text">${statusText}</p>
@@ -1241,26 +1245,26 @@ function showWaCallUI(isVideo, targetUser, statusText) {
                 <audio id="wa-remote-audio" autoplay></audio>
             `}
             
-            <!-- WhatsApp Style Bottom Control Bar -->
-            <div style="width:100%; padding:25px; display:flex; justify-content:center; gap:20px; align-items:center; z-index:3; background: rgba(11, 20, 26, 0.75); backdrop-filter: blur(5px);">
+            <!-- WhatsApp Style Floating Bottom Control Bar -->
+            <div style="position:absolute; bottom:0; left:0; width:100%; padding:30px 20px 40px 20px; display:flex; justify-content:center; gap:25px; align-items:center; z-index:3; background: linear-gradient(to top, rgba(11,20,26,0.95) 60%, transparent);">
                 
                 <!-- Mute Button -->
-                <button onclick="toggleWaMute(this)" style="width:50px; height:50px; border-radius:50%; background:#202c33; border: 1px solid #374248; color:#fff; font-size:18px; cursor:pointer; display:flex; align-items:center; justify-content:center;"><i class="fa-solid fa-microphone" id="wa-mic-icon"></i></button>
+                <button onclick="toggleWaMute(this)" style="width:52px; height:52px; border-radius:50%; background:rgba(32,44,51,0.85); border: 1px solid rgba(255,255,255,0.15); color:#fff; font-size:18px; cursor:pointer; display:flex; align-items:center; justify-content:center; backdrop-filter: blur(5px);"><i class="fa-solid fa-microphone" id="wa-mic-icon"></i></button>
 
                 ${isVideo ? `
                     <!-- Camera Flip Button -->
-                    <button onclick="switchWaCamera()" style="width:50px; height:50px; border-radius:50%; background:#202c33; border: 1px solid #374248; color:#fff; font-size:18px; cursor:pointer; display:flex; align-items:center; justify-content:center;"><i class="fa-solid fa-camera-rotate"></i></button>
+                    <button onclick="switchWaCamera()" style="width:52px; height:52px; border-radius:50%; background:rgba(32,44,51,0.85); border: 1px solid rgba(255,255,255,0.15); color:#fff; font-size:18px; cursor:pointer; display:flex; align-items:center; justify-content:center; backdrop-filter: blur(5px);"><i class="fa-solid fa-camera-rotate"></i></button>
                 ` : `
                     <!-- Speaker Button -->
-                    <button onclick="toggleWaSpeaker(this)" style="width:50px; height:50px; border-radius:50%; background:#202c33; border: 1px solid #374248; color:#fff; font-size:18px; cursor:pointer; display:flex; align-items:center; justify-content:center;"><i class="fa-solid fa-volume-high" id="wa-speaker-icon"></i></button>
+                    <button onclick="toggleWaSpeaker(this)" style="width:52px; height:52px; border-radius:50%; background:rgba(32,44,51,0.85); border: 1px solid rgba(255,255,255,0.15); color:#fff; font-size:18px; cursor:pointer; display:flex; align-items:center; justify-content:center; backdrop-filter: blur(5px);"><i class="fa-solid fa-volume-high" id="wa-speaker-icon"></i></button>
                 `}
 
                 <!-- End Call Button -->
-                <button onclick="endWaCallScreen(true)" style="width:60px; height:60px; border-radius:50%; background:#ea0038; border:none; color:#fff; font-size:22px; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow: 0 4px 15px rgba(234,0,56,0.4);"><i class="fa-solid fa-phone-slash"></i></button>
+                <button onclick="endWaCallScreen(true)" style="width:62px; height:62px; border-radius:50%; background:#ea0038; border:none; color:#fff; font-size:22px; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow: 0 4px 15px rgba(234,0,56,0.4);"><i class="fa-solid fa-phone-slash"></i></button>
             </div>
         </div>
     `;
-    overlay.style.display = 'flex';
+    overlay.style.display = 'block';
 }
 
 function updateWaStatus(text) {
@@ -1282,7 +1286,7 @@ function toggleWaMute(btn) {
         btn.style.color = '#000';
         icon.className = 'fa-solid fa-microphone-slash';
     } else {
-        btn.style.background = '#202c33';
+        btn.style.background = 'rgba(32,44,51,0.85)';
         btn.style.color = '#fff';
         icon.className = 'fa-solid fa-microphone';
     }
@@ -1296,7 +1300,7 @@ function toggleWaSpeaker(btn) {
         btn.style.color = '#000';
         icon.className = 'fa-solid fa-volume-xmark';
     } else {
-        btn.style.background = '#202c33';
+        btn.style.background = 'rgba(32,44,51,0.85)';
         btn.style.color = '#fff';
         icon.className = 'fa-solid fa-volume-high';
     }
@@ -1348,4 +1352,4 @@ function endWaCallScreen(sendSignal = true) {
         overlay.style.display = 'none';
         overlay.remove();
     }
-    }
+        }
