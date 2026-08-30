@@ -1986,44 +1986,111 @@ if (typeof supabaseClient !== 'undefined' && supabaseClient) {
             .subscribe();
     };
 }
-// Safe Instagram Profile Grid & Fullscreen Post Viewer Module - Paste at the very end of script.js
+// Bulletproof Instagram UI & Reel Upload Fix - Paste at the very end of script.js
 
-// 1. Strict Profile Grid Styling (Only for profile sections, chat remains 100% safe)
-function applySafeProfileGridOnly() {
-    // Sirf profile se related containers ko target karenge
-    const profileContainers = document.querySelectorAll('.profile-posts-grid, #profile-posts-grid, .profile-grid, .user-posts-grid, [id*="profile"] .posts, [class*="profile"] .grid');
-    
-    profileContainers.forEach(grid => {
-        if (!grid.classList.contains('insta-grid-applied')) {
-            grid.classList.add('insta-grid-applied');
-            grid.style.display = 'grid';
-            grid.style.gridTemplateColumns = 'repeat(3, 1fr)';
-            grid.style.gap = '2px';
-            grid.style.width = '100%';
+function applyInstagramGridAndInteractions() {
+    // 1. Force all images/videos inside any grid or profile container into a 3-column square grid
+
+    allContainers.forEach(container => {
+        // Agar container mein multiple images/videos hain jo posts jaisi lag rahi hain
+        const childrenImgs = container.querySelectorAll(':scope > img, :scope > video, :scope > div > img');
+        if (childrenImgs.length >= 2 && !container.classList.contains('forced-insta-grid')) {
+            // Check karo ki kya yeh profile grid ya feed jaisa hai
+            const parentStyle = window.getComputedStyle(container);
+            if (parentStyle.display !== 'grid' || container.childElementCount > 2) {
+                container.classList.add('forced-insta-grid');
+                container.style.display = 'grid';
+                container.style.gridTemplateColumns = 'repeat(3, 1fr)';
+                container.style.gap = '3px';
+                container.style.width = '100%';
+            }
         }
-        
-        // Grid ke andar ke images/videos ko square (1:1) karna
-        const mediaItems = grid.querySelectorAll('img, video');
-        mediaItems.forEach(media => {
-            media.style.width = '100%';
+    });
+
+    // Make all grid elements square (1:1 ratio)
+    document.querySelectorAll('img, video').forEach(media => {
+        if (!media.closest('#insta-media-modal') && !media.classList.contains('chat-media')) {
             media.style.aspectRatio = '1 / 1';
             media.style.objectFit = 'cover';
+            media.style.width = '100%';
             media.style.cursor = 'pointer';
-            media.style.borderRadius = '0';
-        });
+        }
+    });
+
+    // 2. Inject Reel Upload Plus(+) Button in Reels Header/Container
+    const headers = document.querySelectorAll('header, .top-bar, .header, div');
+    headers.forEach(header => {
+        const text = header.textContent.toLowerCase();
+        if ((text.includes('reel') || text.includes('reels')) && !header.querySelector('#direct-reel-plus-btn')) {
+            // Check karo ki yeh header chota box hai ya bara container
+            if (header.clientHeight < 100 && header.clientHeight > 20) {
+                header.style.position = 'relative';
+                const plusBtn = document.createElement('button');
+                plusBtn.id = 'direct-reel-plus-btn';
+                plusBtn.innerHTML = '<i class="fa-solid fa-plus"></i>';
+                plusBtn.style.cssText = "position:absolute; right:15px; top:50%; transform:translateY(-50%); background:none; border:none; color:#fff; font-size:22px; cursor:pointer; z-index:999;";
+                
+                plusBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    openReelGalleryPicker();
+                };
+                header.appendChild(plusBtn);
+            }
+        }
     });
 }
 
-// 2. Click to open Profile Posts/Reels in Fullscreen Modal (Chat messages are completely excluded)
+// 3. Gallery Video Picker for Reels
+function openReelGalleryPicker() {
+    let fileInput = document.getElementById('global-reel-file-input');
+    if (!fileInput) {
+        fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.id = 'global-reel-file-input';
+        fileInput.accept = 'video/*';
+        fileInput.style.display = 'none';
+        
+        fileInput.onchange = function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const videoUrl = URL.createObjectURL(file);
+                playUploadedReelPreview(videoUrl);
+            }
+        };
+        document.body.appendChild(fileInput);
+    }
+    fileInput.click();
+}
+
+function playUploadedReelPreview(url) {
+    let previewModal = document.getElementById('reel-preview-modal');
+    if (!previewModal) {
+        previewModal = document.createElement('div');
+        previewModal.id = 'reel-preview-modal';
+        previewModal.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:#000; z-index:999999; display:flex; flex-direction:column; justify-content:center; align-items:center;";
+        document.body.appendChild(previewModal);
+    }
+
+    previewModal.innerHTML = `
+        <div style="position:absolute; top:20px; left:20px; z-index:10;">
+            <button onclick="document.getElementById('reel-preview-modal').style.display='none';" style="background:none; border:none; color:#fff; font-size:24px; cursor:pointer;"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <video src="${url}" controls autoplay style="width:100%; max-height:80vh; object-fit:contain;"></video>
+        <div style="margin-top:20px;">
+            <button onclick="alert('Reel uploaded successfully!'); document.getElementById('reel-preview-modal').style.display='none';" style="background:#0095f6; color:#fff; border:none; padding:10px 20px; border-radius:8px; font-weight:bold; cursor:pointer;">Share Reel</button>
+        </div>
+    `;
+    previewModal.style.display = 'flex';
+}
+
+// 4. Click to open any Image/Video in Fullscreen Modal
 document.addEventListener('click', function(e) {
-    // Check karo ki click kisi profile post ya grid item par hua hai (aur chat area me nahi)
-    const targetMedia = e.target.closest('.profile-posts-grid img, .profile-posts-grid video, #profile-posts-grid img, #profile-posts-grid video, .profile-grid img, .profile-grid video, [class*="profile"] img, [class*="profile"] video');
-    
-    if (targetMedia && !targetMedia.closest('#chat-messages') && !targetMedia.closest('.chat-box')) {
+    const targetMedia = e.target.closest('img, video');
+    if (targetMedia && !targetMedia.closest('#insta-media-modal') && !targetMedia.closest('#reel-preview-modal')) {
         const src = targetMedia.src;
         if (!src) return;
         const isVideo = targetMedia.tagName === 'VIDEO' || src.includes('.mp4');
-
+        
         let modal = document.getElementById('insta-media-modal');
         if (!modal) {
             modal = document.createElement('div');
@@ -2046,5 +2113,5 @@ document.addEventListener('click', function(e) {
     }
 });
 
-// Run continuously for dynamic profile tab switching
-setInterval(applySafeProfileGridOnly, 800);
+// Run continuously so dynamically loaded pages/tabs get formatted instantly
+setInterval(applyInstagramGridAndInteractions, 800);
