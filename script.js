@@ -2116,174 +2116,90 @@ document.addEventListener('click', function(e) {
 // Run continuously so dynamically loaded pages/tabs get formatted instantly
 setInterval(applyInstagramGridAndInteractions, 800);
 
-// Perfect Instagram Profile Grid & Real Followers/Following Module - Paste at the very end of script.js
+// Clean & Direct Profile Grid & Follow Modal Fix - Paste at the very end of script.js
 
-// 1. Safe & Precise Profile Grid Styling (Only targets profile post containers)
-function fixProfileGridToInstaStyle() {
-    // Aapke profile page ke posts grid container ko target karne ke liye
-    const profileGrids = document.querySelectorAll('.profile-posts, .posts-grid, #profile-posts, .user-posts, div[style*="grid"]');
-    
-    profileGrids.forEach(grid => {
-        // Ensure ye chat container na ho
-        if (grid.closest('#chat-messages') || grid.closest('.chat-box')) return;
+// 1. Force Profile Grid into 3 Columns and Square Images
+function applyCleanGrid() {
+    // Apne profile posts container ko select karein
+    const grids = document.querySelectorAll('.profile-posts, .posts-grid, #profile-posts, .user-posts, div[class*="profile"]');
+    grids.forEach(el => {
+        if (el.closest('#chat-messages')) return;
+        el.style.display = 'grid';
+        el.style.gridTemplateColumns = 'repeat(3, 1fr)';
+        el.style.gap = '2px';
         
-        grid.style.display = 'grid';
-        grid.style.gridTemplateColumns = 'repeat(3, 1fr)';
-        grid.style.gap = '2px';
-        grid.style.width = '100%';
-        
-        // Grid ke andar ke sabhi posts/images ko square (1:1 ratio) aur chota karna
-        const items = grid.querySelectorAll('img, video, .post-item, .grid-item');
-        items.forEach(item => {
-            if (item.tagName === 'IMG' || item.tagName === 'VIDEO') {
-                item.style.width = '100%';
-                item.style.height = '100%';
-                item.style.aspectRatio = '1 / 1';
-                item.style.objectFit = 'cover';
-                item.style.cursor = 'pointer';
-                item.style.borderRadius = '0';
-            } else {
-                item.style.aspectRatio = '1 / 1';
-                item.style.overflow = 'hidden';
-                const media = item.querySelector('img, video');
-                if (media) {
-                    media.style.width = '100%';
-                    media.style.height = '100%';
-                    media.style.objectFit = 'cover';
-                    media.style.cursor = 'pointer';
-                    media.style.borderRadius = '0';
-                }
-            }
+        const images = el.querySelectorAll('img, video');
+        images.forEach(img => {
+            img.style.width = '100%';
+            img.style.height = '100%';
+            img.style.aspectRatio = '1 / 1';
+            img.style.objectFit = 'cover';
+            img.style.cursor = 'pointer';
+            img.style.borderRadius = '0';
         });
     });
 }
 
-// 2. Click to open Profile Post in Fullscreen Modal
+// 2. Click to open post in full screen
 document.addEventListener('click', function(e) {
-    const targetMedia = e.target.closest('img, video');
-    // Check karo ki click profile grid ke andar wali media par hua hai (chat par nahi)
-    if (targetMedia && !targetMedia.closest('#chat-messages') && !targetMedia.closest('#insta-media-modal')) {
-        const gridParent = targetMedia.closest('.profile-posts, .posts-grid, #profile-posts, .user-posts');
-        if (gridParent || targetMedia.style.aspectRatio === '1 / 1' || targetMedia.closest('.post-item')) {
-            const src = targetMedia.src;
-            if (!src) return;
-            const isVideo = targetMedia.tagName === 'VIDEO' || src.includes('.mp4');
-
-            let modal = document.getElementById('insta-media-modal');
-            if (!modal) {
-                modal = document.createElement('div');
-                modal.id = 'insta-media-modal';
-                modal.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.95); z-index:999999; display:flex; justify-content:center; align-items:center; padding:15px;";
-                document.body.appendChild(modal);
-            }
-
-            modal.innerHTML = `
-                <div style="position:relative; max-width:450px; width:100%; background:#000; border-radius:12px; overflow:hidden; display:flex; flex-direction:column; border:1px solid #333;">
-                    <div style="display:flex; justify-content:flex-end; padding:12px; background:#111;">
-                        <button onclick="document.getElementById('insta-media-modal').style.display='none';" style="background:none; border:none; color:#fff; font-size:22px; cursor:pointer;"><i class="fa-solid fa-xmark"></i></button>
-                    </div>
-                    <div style="width:100%; max-height:75vh; display:flex; justify-content:center; align-items:center; background:#000;">
-                        ${isVideo ? `<video src="${src}" controls autoplay style="width:100%; max-height:75vh; object-fit:contain;"></video>` : `<img src="${src}" style="width:100%; max-height:75vh; object-fit:contain;">`}
-                    </div>
-                </div>
-            `;
-            modal.style.display = 'flex';
-        }
-    }
-});
-
-// 3. Real Followers & Following Fetcher & Modal Viewer
-document.addEventListener('click', function(e) {
-    const statItem = e.target.closest('.followers-count, .following-count, div, span');
-    if (!statItem) return;
-    
-    const text = statItem.textContent.toLowerCase();
-    // Check karo ki user ne 'followers' ya 'following' par tap kiya hai
-    if ((text.includes('follower') || text.includes('following')) && text.length < 25) {
-        e.stopPropagation();
-        const type = text.includes('following') ? 'following' : 'followers';
-        fetchAndShowRealFollowList(type);
-    }
-});
-
-async function fetchAndShowRealFollowList(type) {
-    const currentUser = localStorage.getItem('currentUsername');
-    if (!currentUser || typeof supabaseClient === 'undefined') {
-        alert("User session not found!");
-        return;
-    }
-
-    let modal = document.getElementById('real-follow-modal');
-    if (!modal) {
-        modal = document.createElement('div');
-        modal.id = 'real-follow-modal';
-        modal.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:999999; display:flex; justify-content:center; align-items:center; padding:20px;";
-        document.body.appendChild(modal);
-    }
-
-    modal.innerHTML = `
-        <div style="width:100%; max-width:380px; background:#262626; border-radius:14px; overflow:hidden; display:flex; flex-direction:column; color:#fff; max-height:70vh;">
-            <div style="display:flex; justify-content:space-between; align-items:center; padding:15px; border-bottom:1px solid #363636;">
-                <h3 style="margin:0; font-size:16px; text-transform:capitalize;">${type}</h3>
-                <button onclick="document.getElementById('real-follow-modal').style.display='none';" style="background:none; border:none; color:#fff; font-size:20px; cursor:pointer;"><i class="fa-solid fa-xmark"></i></button>
-            </div>
-            <div id="real-follow-list-content" style="overflow-y:auto; padding:10px; display:flex; flex-direction:column; gap:10px;">
-                <div style="text-align:center; padding:20px; color:#aaa; font-size:13px;">Loading...</div>
-            </div>
-        </div>
-    `;
-    modal.style.display = 'flex';
-
-    try {
-        // Supabase se real data fetch karna (Aapke database table ke anusaar 'follows' ya 'followers' table)
-        let queryField = type === 'followers' ? 'following_user' : 'followed_user'; // Jo aapke DB schema me ho
-        let targetField = type === 'followers' ? 'user_id' : 'follower_user';
+    const img = e.target.closest('img, video');
+    if (img && !img.closest('#chat-messages') && (img.closest('.profile-posts') || img.closest('.posts-grid') || img.style.aspectRatio === '1 / 1')) {
+        const src = img.src;
+        if (!src) return;
         
-        // Supabase query to get real connected users
-        const { data, error } = await supabaseClient
-            .from('follows')
-            .select('*')
-            .eq(targetField, currentUser);
-
-        const listContainer = document.getElementById('real-follow-list-content');
-        if (error || !data || data.length === 0) {
-            listContainer.innerHTML = `<div style="text-align:center; padding:20px; color:#888; font-size:13px;">No ${type} found.</div>`;
-            return;
+        let modal = document.getElementById('simple-media-modal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'simple-media-modal';
+            modal.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.95); z-index:999999; display:flex; justify-content:center; align-items:center; padding:15px;";
+            document.body.appendChild(modal);
         }
 
-        let html = '';
-        data.forEach(item => {
-            const username = item[queryField] || item.target_user || item.username;
-            if (username) {
-                html += `
-                    <div style="display:flex; align-items:center; justify-content:space-between; padding:8px; background:#1a1a1a; border-radius:8px;">
-                        <div style="display:flex; align-items:center; gap:10px; cursor:pointer;" onclick="openTargetUserProfile('${username}')">
-                            <div style="width:36px; height:36px; border-radius:50%; background:#0095f6; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:14px;">${username.charAt(0).toUpperCase()}</div>
-                            <span style="font-size:14px; font-weight:500;">${username}</span>
-                        </div>
-                        <button onclick="openTargetUserProfile('${username}')" style="background:#0095f6; border:none; color:#fff; padding:6px 14px; border-radius:6px; font-size:12px; cursor:pointer;">View</button>
-                    </div>
-                `;
-            }
-        });
-        listContainer.innerHTML = html || `<div style="text-align:center; padding:20px; color:#888; font-size:13px;">No ${type} found.</div>`;
-
-    } catch (err) {
-        document.getElementById('real-follow-list-content').innerHTML = `<div style="text-align:center; padding:20px; color:#ff4d4d; font-size:13px;">Failed to load.</div>`;
+        modal.innerHTML = `
+            <div style="position:relative; max-width:450px; width:100%; background:#000; border-radius:12px; overflow:hidden; display:flex; flex-direction:column;">
+                <div style="display:flex; justify-content:flex-end; padding:12px; background:#111;">
+                    <button onclick="document.getElementById('simple-media-modal').style.display='none';" style="background:none; border:none; color:#fff; font-size:22px; cursor:pointer;"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div style="width:100%; max-height:75vh; display:flex; justify-content:center; align-items:center; background:#000;">
+                    ${img.tagName === 'VIDEO' ? `<video src="${src}" controls autoplay style="width:100%; max-height:75vh; object-fit:contain;"></video>` : `<img src="${src}" style="width:100%; max-height:75vh; object-fit:contain;">`}
+                </div>
+            </div>
+        `;
+        modal.style.display = 'flex';
     }
-}
+});
 
-function openTargetUserProfile(username) {
-    const modal = document.getElementById('real-follow-modal');
-    if (modal) modal.style.display = 'none';
+// 3. Followers / Following Click Handler
+document.addEventListener('click', function(e) {
+    const target = e.target.closest('div, span, p');
+    if (!target) return;
     
-    // Agar aapke project mein profile kholne ka koi function pehle se hai toh use call karenge
-    if (typeof openUserProfile === 'function') {
-        openUserProfile(username);
-    } else {
-        alert("Opening profile of: " + username);
-    }
-}
+    const text = target.textContent.toLowerCase();
+    if ((text.includes('follower') || text.includes('following')) && text.length < 30) {
+        e.stopPropagation();
+        const type = text.includes('following') ? 'Following' : 'Followers';
+        
+        let modal = document.getElementById('simple-follow-modal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'simple-follow-modal';
+            modal.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:999999; display:flex; justify-content:center; align-items:center; padding:20px;";
+            document.body.appendChild(modal);
+        }
 
-// Continuously keep grid formatted
-setInterval(fixProfileGridToInstaStyle, 1000);
+        modal.innerHTML = `
+            <div style="width:100%; max-width:350px; background:#262626; border-radius:12px; overflow:hidden; display:flex; flex-direction:column; color:#fff;">
+                <div style="display:flex; justify-content:space-between; align-items:center; padding:14px; border-bottom:1px solid #363636;">
+                    <h3 style="margin:0; font-size:15px;">${type}</h3>
+                    <button onclick="document.getElementById('simple-follow-modal').style.display='none';" style="background:none; border:none; color:#fff; font-size:18px; cursor:pointer;"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div style="padding:15px; text-align:center; color:#aaa; font-size:13px;">
+                    Aapke database ke follow schema ke mutabiq yeh list yahan load hogi.
+                </div>
+            </div>
+        `;
+        modal.style.display = 'flex';
+    }
+});
+
+setInterval(applyCleanGrid, 1000);
