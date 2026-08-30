@@ -1986,98 +1986,86 @@ if (typeof supabaseClient !== 'undefined' && supabaseClient) {
             .subscribe();
     };
 }
-// Safe Profile Grid, Followers Modal & Post Viewer Module - Paste at the very end of script.js
+// Universal Instagram Profile & Grid Fix - Paste at the very end of script.js
 
-// 1. Strict Profile Grid Styling (Only affects profile posts container, leaving chat untouched)
-function applySafeProfileGrid() {
-    const profileGrids = document.querySelectorAll('.profile-posts-grid, #profile-posts-grid, .profile-grid, .user-posts-grid, #profile-view .posts-container');
-    profileGrids.forEach(grid => {
-        grid.style.display = 'grid';
-        grid.style.gridTemplateColumns = 'repeat(3, 1fr)';
-        grid.style.gap = '2px';
-        grid.style.width = '100%';
+// 1. Inject Forceful Instagram CSS Style to Document Head
+if (!document.getElementById('forced-instagram-profile-style')) {
+    const styleEl = document.createElement('style');
+    styleEl.id = 'forced-instagram-profile-style';
+    styleEl.innerHTML = `
+        /* Profile Grid 3 Columns Forceful Style */
+        .profile-posts-grid, #profile-posts-grid, .profile-grid, .user-posts-grid, 
+        div[class*="profile"] div[class*="grid"], div[class*="posts"], section[class*="profile"] {
+            display: grid !important;
+            grid-template-columns: repeat(3, 1fr) !important;
+            gap: 2px !important;
+            width: 100% !important;
+        }
         
-        const items = grid.querySelectorAll('img, video, .post-item, .grid-item');
-        items.forEach(item => {
-            if (item.tagName === 'IMG' || item.tagName === 'VIDEO') {
-                item.style.width = '100%';
-                item.style.aspectRatio = '1 / 1';
-                item.style.objectFit = 'cover';
-                item.style.cursor = 'pointer';
-                item.style.borderRadius = '0';
-            } else {
-                item.style.aspectRatio = '1 / 1';
-                item.style.overflow = 'hidden';
-                const media = item.querySelector('img, video');
-                if (media) {
-                    media.style.width = '100%';
-                    media.style.height = '100%';
-                    media.style.objectFit = 'cover';
-                    media.style.cursor = 'pointer';
-                }
-            }
-        });
-    });
-}
-
-// 2. Open Profile Post in Fullscreen Modal when tapped
-document.addEventListener('click', function(e) {
-    const profileGrid = e.target.closest('.profile-posts-grid, #profile-posts-grid, .profile-grid, .user-posts-grid, #profile-view .posts-container');
-    if (profileGrid) {
-        const mediaTarget = e.target.closest('img, video, .post-item, .grid-item');
-        if (mediaTarget) {
-            const img = mediaTarget.tagName === 'IMG' ? mediaTarget : mediaTarget.querySelector('img');
-            const video = mediaTarget.tagName === 'VIDEO' ? mediaTarget : mediaTarget.querySelector('video');
-            const src = img ? img.src : (video ? video.src : null);
-            
-            if (src) {
-                e.stopPropagation();
-                openSafeProfileModal(src, video ? 'video' : 'image');
-            }
+        /* Make all images and videos square 1:1 */
+        .profile-posts-grid img, .profile-posts-grid video, 
+        #profile-posts-grid img, #profile-posts-grid video,
+        .profile-grid img, .profile-grid video,
+        div[class*="profile"] img, div[class*="profile"] video {
+            width: 100% !important;
+            aspect-ratio: 1 / 1 !important;
+            object-fit: cover !important;
+            cursor: pointer !important;
+            border-radius: 0 !important;
         }
-    }
-});
-
-function openSafeProfileModal(src, type) {
-    let modal = document.getElementById('safe-profile-post-modal');
-    if (!modal) {
-        modal = document.createElement('div');
-        modal.id = 'safe-profile-post-modal';
-        modal.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.95); z-index:999999; display:flex; justify-content:center; align-items:center; padding:15px;";
-        document.body.appendChild(modal);
-    }
-
-    modal.innerHTML = `
-        <div style="position:relative; max-width:450px; width:100%; background:#000; border-radius:12px; overflow:hidden; display:flex; flex-direction:column; border:1px solid #333;">
-            <div style="display:flex; justify-content:flex-end; padding:12px; background:#111;">
-                <button onclick="document.getElementById('safe-profile-post-modal').style.display='none';" style="background:none; border:none; color:#fff; font-size:22px; cursor:pointer;"><i class="fa-solid fa-xmark"></i></button>
-            </div>
-            <div style="width:100%; max-height:75vh; display:flex; justify-content:center; align-items:center; background:#000;">
-                ${type === 'video' ? `<video src="${src}" controls autoplay style="width:100%; max-height:75vh; object-fit:contain;"></video>` : `<img src="${src}" style="width:100%; max-height:75vh; object-fit:contain;">`}
-            </div>
-        </div>
     `;
-    modal.style.display = 'flex';
+    document.head.appendChild(styleEl);
 }
 
-// 3. Followers / Following Modal on Tap
+// 2. Fullscreen Post Viewer on Tap
 document.addEventListener('click', function(e) {
-    const target = e.target.closest('.followers-count, .following-count, [id*="follower"], [id*="following"], .profile-stats-item');
-    if (target) {
-        const text = target.textContent.toLowerCase();
-        if (text.includes('follower') || text.includes('following')) {
-            e.stopPropagation();
-            const type = text.includes('following') ? 'Following' : 'Followers';
-            openSafeFollowModal(type);
+    const targetMedia = e.target.closest('img, video');
+    // Check if the clicked image/video is inside a profile or grid area (avoiding chat and modals)
+    if (targetMedia && !targetMedia.closest('#chat-messages') && !targetMedia.closest('#insta-media-modal') && !targetMedia.closest('nav') && !targetMedia.closest('header')) {
+        const src = targetMedia.src;
+        if (!src) return;
+        const isVideo = targetMedia.tagName === 'VIDEO' || src.includes('.mp4');
+
+        let modal = document.getElementById('insta-media-modal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'insta-media-modal';
+            modal.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.95); z-index:999999; display:flex; justify-content:center; align-items:center; padding:15px;";
+            document.body.appendChild(modal);
         }
+
+        modal.innerHTML = `
+            <div style="position:relative; max-width:450px; width:100%; background:#000; border-radius:12px; overflow:hidden; display:flex; flex-direction:column; border:1px solid #333;">
+                <div style="display:flex; justify-content:flex-end; padding:12px; background:#111;">
+                    <button onclick="document.getElementById('insta-media-modal').style.display='none';" style="background:none; border:none; color:#fff; font-size:22px; cursor:pointer;"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div style="width:100%; max-height:75vh; display:flex; justify-content:center; align-items:center; background:#000;">
+                    ${isVideo ? `<video src="${src}" controls autoplay style="width:100%; max-height:75vh; object-fit:contain;"></video>` : `<img src="${src}" style="width:100%; max-height:75vh; object-fit:contain;">`}
+                </div>
+            </div>
+        `;
+        modal.style.display = 'flex';
     }
 });
 
-function openSafeFollowModal(title) {
-    let modal = document.getElementById('safe-follow-list-modal');
+// 3. Followers & Following Click Handler
+document.addEventListener('click', function(e) {
+    const element = e.target.closest('div, span, p, button');
+    if (!element) return;
+    
+    const text = element.textContent.toLowerCase();
+    if ((text.includes('follower') || text.includes('following')) && text.length < 30) {
+        e.stopPropagation();
+        const type = text.includes('following') ? 'Following' : 'Followers';
+        showFollowersModal(type);
+    }
+});
+
+function showFollowersModal(title) {
+    let modal = document.getElementById('followers-list-modal');
     if (!modal) {
         modal = document.createElement('div');
-        modal.id = 'safe-follow-list-modal';
+        modal.id = 'followers-list-modal';
         modal.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:999999; display:flex; justify-content:center; align-items:center; padding:20px;";
         document.body.appendChild(modal);
     }
@@ -2086,30 +2074,18 @@ function openSafeFollowModal(title) {
         <div style="width:100%; max-width:380px; background:#262626; border-radius:14px; overflow:hidden; display:flex; flex-direction:column; color:#fff; max-height:70vh;">
             <div style="display:flex; justify-content:space-between; align-items:center; padding:15px; border-bottom:1px solid #363636;">
                 <h3 style="margin:0; font-size:16px;">${title}</h3>
-                <button onclick="document.getElementById('safe-follow-list-modal').style.display='none';" style="background:none; border:none; color:#fff; font-size:20px; cursor:pointer;"><i class="fa-solid fa-xmark"></i></button>
+                <button onclick="document.getElementById('followers-list-modal').style.display='none';" style="background:none; border:none; color:#fff; font-size:20px; cursor:pointer;"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <div style="overflow-y:auto; padding:10px; display:flex; flex-direction:column; gap:12px;">
-                <div style="display:flex; align-items:center; justify-content:space-between; padding:8px; cursor:pointer;" onclick="handleUserTap('sample_user')">
+                <div style="display:flex; align-items:center; justify-content:space-between; padding:8px;">
                     <div style="display:flex; align-items:center; gap:10px;">
                         <div style="width:40px; height:40px; border-radius:50%; background:#404040; display:flex; align-items:center; justify-content:center; font-weight:bold;">U</div>
-                        <span>sample_user</span>
+                        <span>user_profile_1</span>
                     </div>
-                    <button style="background:#0095f6; border:none; color:#fff; padding:6px 14px; border-radius:6px; font-size:12px; cursor:pointer;">View</button>
+                    <button onclick="alert('Opening profile...')" style="background:#0095f6; border:none; color:#fff; padding:6px 14px; border-radius:6px; font-size:12px; cursor:pointer;">View</button>
                 </div>
             </div>
         </div>
     `;
     modal.style.display = 'flex';
 }
-
-function handleUserTap(username) {
-    document.getElementById('safe-follow-list-modal').style.display = 'none';
-    if (typeof openUserProfile === 'function') {
-        openUserProfile(username);
-    } else {
-        alert("Opening profile: " + username);
-    }
-}
-
-// Keep checking profile grid to format dynamically loaded pages
-setInterval(applySafeProfileGrid, 1000);
