@@ -1986,42 +1986,40 @@ if (typeof supabaseClient !== 'undefined' && supabaseClient) {
             .subscribe();
     };
 }
-// Universal Instagram Profile & Grid Fix - Paste at the very end of script.js
+// Safe Instagram Profile Grid & Fullscreen Post Viewer Module - Paste at the very end of script.js
 
-// 1. Inject Forceful Instagram CSS Style to Document Head
-if (!document.getElementById('forced-instagram-profile-style')) {
-    const styleEl = document.createElement('style');
-    styleEl.id = 'forced-instagram-profile-style';
-    styleEl.innerHTML = `
-        /* Profile Grid 3 Columns Forceful Style */
-        .profile-posts-grid, #profile-posts-grid, .profile-grid, .user-posts-grid, 
-        div[class*="profile"] div[class*="grid"], div[class*="posts"], section[class*="profile"] {
-            display: grid !important;
-            grid-template-columns: repeat(3, 1fr) !important;
-            gap: 2px !important;
-            width: 100% !important;
+// 1. Strict Profile Grid Styling (Only for profile sections, chat remains 100% safe)
+function applySafeProfileGridOnly() {
+    // Sirf profile se related containers ko target karenge
+    const profileContainers = document.querySelectorAll('.profile-posts-grid, #profile-posts-grid, .profile-grid, .user-posts-grid, [id*="profile"] .posts, [class*="profile"] .grid');
+    
+    profileContainers.forEach(grid => {
+        if (!grid.classList.contains('insta-grid-applied')) {
+            grid.classList.add('insta-grid-applied');
+            grid.style.display = 'grid';
+            grid.style.gridTemplateColumns = 'repeat(3, 1fr)';
+            grid.style.gap = '2px';
+            grid.style.width = '100%';
         }
         
-        /* Make all images and videos square 1:1 */
-        .profile-posts-grid img, .profile-posts-grid video, 
-        #profile-posts-grid img, #profile-posts-grid video,
-        .profile-grid img, .profile-grid video,
-        div[class*="profile"] img, div[class*="profile"] video {
-            width: 100% !important;
-            aspect-ratio: 1 / 1 !important;
-            object-fit: cover !important;
-            cursor: pointer !important;
-            border-radius: 0 !important;
-        }
-    `;
-    document.head.appendChild(styleEl);
+        // Grid ke andar ke images/videos ko square (1:1) karna
+        const mediaItems = grid.querySelectorAll('img, video');
+        mediaItems.forEach(media => {
+            media.style.width = '100%';
+            media.style.aspectRatio = '1 / 1';
+            media.style.objectFit = 'cover';
+            media.style.cursor = 'pointer';
+            media.style.borderRadius = '0';
+        });
+    });
 }
 
-// 2. Fullscreen Post Viewer on Tap
+// 2. Click to open Profile Posts/Reels in Fullscreen Modal (Chat messages are completely excluded)
 document.addEventListener('click', function(e) {
-    const targetMedia = e.target.closest('img, video');
-    // Check if the clicked image/video is inside a profile or grid area (avoiding chat and modals)
-    if (targetMedia && !targetMedia.closest('#chat-messages') && !targetMedia.closest('#insta-media-modal') && !targetMedia.closest('nav') && !targetMedia.closest('header')) {
+    // Check karo ki click kisi profile post ya grid item par hua hai (aur chat area me nahi)
+    const targetMedia = e.target.closest('.profile-posts-grid img, .profile-posts-grid video, #profile-posts-grid img, #profile-posts-grid video, .profile-grid img, .profile-grid video, [class*="profile"] img, [class*="profile"] video');
+    
+    if (targetMedia && !targetMedia.closest('#chat-messages') && !targetMedia.closest('.chat-box')) {
         const src = targetMedia.src;
         if (!src) return;
         const isVideo = targetMedia.tagName === 'VIDEO' || src.includes('.mp4');
@@ -2048,44 +2046,5 @@ document.addEventListener('click', function(e) {
     }
 });
 
-// 3. Followers & Following Click Handler
-document.addEventListener('click', function(e) {
-    const element = e.target.closest('div, span, p, button');
-    if (!element) return;
-    
-    const text = element.textContent.toLowerCase();
-    if ((text.includes('follower') || text.includes('following')) && text.length < 30) {
-        e.stopPropagation();
-        const type = text.includes('following') ? 'Following' : 'Followers';
-        showFollowersModal(type);
-    }
-});
-
-function showFollowersModal(title) {
-    let modal = document.getElementById('followers-list-modal');
-    if (!modal) {
-        modal = document.createElement('div');
-        modal.id = 'followers-list-modal';
-        modal.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:999999; display:flex; justify-content:center; align-items:center; padding:20px;";
-        document.body.appendChild(modal);
-    }
-
-    modal.innerHTML = `
-        <div style="width:100%; max-width:380px; background:#262626; border-radius:14px; overflow:hidden; display:flex; flex-direction:column; color:#fff; max-height:70vh;">
-            <div style="display:flex; justify-content:space-between; align-items:center; padding:15px; border-bottom:1px solid #363636;">
-                <h3 style="margin:0; font-size:16px;">${title}</h3>
-                <button onclick="document.getElementById('followers-list-modal').style.display='none';" style="background:none; border:none; color:#fff; font-size:20px; cursor:pointer;"><i class="fa-solid fa-xmark"></i></button>
-            </div>
-            <div style="overflow-y:auto; padding:10px; display:flex; flex-direction:column; gap:12px;">
-                <div style="display:flex; align-items:center; justify-content:space-between; padding:8px;">
-                    <div style="display:flex; align-items:center; gap:10px;">
-                        <div style="width:40px; height:40px; border-radius:50%; background:#404040; display:flex; align-items:center; justify-content:center; font-weight:bold;">U</div>
-                        <span>user_profile_1</span>
-                    </div>
-                    <button onclick="alert('Opening profile...')" style="background:#0095f6; border:none; color:#fff; padding:6px 14px; border-radius:6px; font-size:12px; cursor:pointer;">View</button>
-                </div>
-            </div>
-        </div>
-    `;
-    modal.style.display = 'flex';
-}
+// Run continuously for dynamic profile tab switching
+setInterval(applySafeProfileGridOnly, 800);
