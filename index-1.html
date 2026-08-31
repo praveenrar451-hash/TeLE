@@ -1,0 +1,2194 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SocialNexus — Real-Time Omni-Social App</title>
+    
+    <link rel="preconnect" href="https://cdn.tailwindcss.com">
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
+    <link rel="manifest" href="/manifest(8).json">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: { colors: { darker: '#030712', cardbg: '#0b0f19' } }
+            }
+        }
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+
+    <style>
+        *, ::before, ::after { box-sizing: border-box; }
+        html, body { background-color: #030712; color: #f8fafc; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 0; height: 100%; overflow: hidden; position: fixed; width: 100%; }
+        
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: #030712; }
+        ::-webkit-scrollbar-thumb { background: #1f2937; border-radius: 9999px; }
+
+        .glass-panel {
+            background: rgba(11, 15, 25, 0.96);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.07);
+        }
+        .fast-transition { transition: transform 0.1s ease, background-color 0.1s ease, opacity 0.1s ease; }
+        
+        .reel-container {
+            scroll-snap-type: y mandatory;
+            overflow-y: scroll;
+            height: 100%;
+        }
+        .reel-item {
+            scroll-snap-align: start;
+            height: 100%;
+            position: relative;
+        }
+
+        /* In-App Floating Notification Banner Animation */
+        @keyframes slideDown {
+            from { transform: translateY(-100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .animate-slide-down {
+            animation: slideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+    </style>
+</head>
+<body class="h-full flex flex-col antialiased selection:bg-pink-500 selection:text-white">
+
+    <!-- Global In-App / Real-Time Message Popup Banner Container -->
+    <div id="inAppNotificationContainer" class="fixed top-4 inset-x-0 z-[200] pointer-events-none flex flex-col items-center px-4 space-y-2"></div>
+
+    <div id="auth-screen" class="fixed inset-0 z-50 flex items-center justify-center bg-darker p-4">
+        <div class="glass-panel w-full max-w-sm p-6 rounded-3xl shadow-2xl space-y-5 relative overflow-hidden">
+            <div class="absolute -top-20 -right-20 w-36 h-36 bg-pink-500/15 rounded-full blur-2xl pointer-events-none"></div>
+            <div class="absolute -bottom-20 -left-20 w-36 h-36 bg-purple-500/15 rounded-full blur-2xl pointer-events-none"></div>
+            
+            <div class="text-center space-y-1.5">
+                <div class="inline-flex p-3 bg-gradient-to-tr from-purple-600 to-pink-600 rounded-2xl shadow-lg shadow-pink-500/20 text-white text-lg">
+                    <i class="fa-solid fa-layer-group"></i>
+                </div>
+                <h1 class="text-lg font-black tracking-tight bg-gradient-to-r from-purple-400 via-pink-400 to-sky-400 bg-clip-text text-transparent">SocialNexus</h1>
+                <p class="text-[10px] text-slate-400">Insta × Twitter × Telegram Mixer</p>
+            </div>
+
+            <form id="loginForm" class="space-y-3.5">
+                <div class="space-y-1">
+                    <label class="text-[11px] font-semibold text-slate-400 px-1">Username</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500"><i class="fa-solid fa-at text-xs"></i></span>
+                        <input type="text" id="loginUsername" required placeholder="Enter username..." 
+                            class="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-3 py-2.5 text-xs focus:outline-none focus:border-pink-500 text-slate-200">
+                    </div>
+                </div>
+                <div class="space-y-1">
+                    <label class="text-[11px] font-semibold text-slate-400 px-1">Password (Fixed)</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500"><i class="fa-solid fa-lock text-xs"></i></span>
+                        <input type="password" id="loginPassword" required placeholder="Enter password" 
+                            class="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-3 py-2.5 text-xs focus:outline-none focus:border-pink-500 text-slate-200">
+                    </div>
+                    <p id="loginError" class="text-[10px] text-red-400 px-1 hidden">Incorrect password!</p>
+                </div>
+                <button type="submit" class="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-95 font-bold py-2.5 rounded-xl text-xs shadow-lg shadow-pink-600/20 fast-transition active:scale-[0.98]">
+                    Launch System
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Instagram / WhatsApp Style Calling Screen Overlay -->
+    <div id="activeCallScreen" class="fixed inset-0 z-[100] bg-slate-950 flex flex-col justify-between items-center p-6 hidden">
+        <!-- Top Corner App Logo / Branding Overlay -->
+        <div class="absolute top-4 left-4 z-20 flex items-center space-x-1.5 bg-slate-900/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-800">
+            <div class="w-5 h-5 bg-gradient-to-tr from-purple-600 to-pink-600 rounded-md flex items-center justify-center text-white font-bold text-[10px] shadow">
+                <i class="fa-solid fa-layer-group"></i>
+            </div>
+            <span class="text-[11px] font-black tracking-tight bg-gradient-to-r from-purple-400 via-pink-400 to-sky-400 bg-clip-text text-transparent">Nexus Call</span>
+        </div>
+
+        <div class="absolute inset-0 overflow-hidden z-0 flex flex-col">
+            <!-- Remote User Video (Main Full Screen view when video call) -->
+            <video id="remoteVideoElement" autoplay playsinline class="w-full h-full object-cover hidden"></video>
+            <div id="callBackgroundOverlay" class="absolute inset-0 bg-gradient-to-b from-slate-900/90 via-slate-950 to-black flex flex-col items-center justify-center">
+                <div id="callUserAvatarBox" class="w-24 h-24 rounded-full bg-gradient-to-tr from-purple-500 to-pink-500 flex items-center justify-center font-bold text-3xl text-white shadow-2xl mb-4 overflow-hidden">U</div>
+                <h2 id="callingUserNameTitle" class="text-base font-bold text-white tracking-wide">Connecting...</h2>
+                <p id="callStatusTimerText" class="text-xs text-sky-400 mt-1">Establishing secure connection...</p>
+            </div>
+        </div>
+
+        <div class="relative z-10 w-full flex justify-between items-center max-w-md pt-12">
+            <button onclick="toggleAudioOutputRoute()" id="audioRouteBtn" class="bg-slate-800/80 backdrop-blur text-white px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 shadow">
+                <i class="fa-solid fa-volume-high" id="audioRouteIcon"></i> <span id="audioRouteText">Speaker</span>
+            </button>
+            <!-- Local User PiP Video Box -->
+            <div class="w-20 h-28 rounded-xl overflow-hidden border-2 border-slate-700 bg-slate-900 shadow-xl relative">
+                <video id="localVideoElement" autoplay playsinline muted class="w-full h-full object-cover"></video>
+                <span class="absolute bottom-1 left-1 bg-black/60 text-[8px] text-white px-1 rounded">You</span>
+            </div>
+        </div>
+
+        <div class="relative z-10 w-full max-w-xs bg-slate-900/80 backdrop-blur-md border border-slate-800 p-4 rounded-3xl flex justify-around items-center shadow-2xl mb-6">
+            <button onclick="toggleCallMute()" id="callMuteBtn" class="w-12 h-12 rounded-full bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center transition text-sm shadow">
+                <i class="fa-solid fa-microphone" id="muteIconElement"></i>
+            </button>
+            <button onclick="toggleCallVideo()" id="callVideoBtn" class="w-12 h-12 rounded-full bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center transition text-sm shadow hidden">
+                <i class="fa-solid fa-video" id="videoIconElement"></i>
+            </button>
+            <button onclick="flipCameraView()" id="callFlipBtn" class="w-12 h-12 rounded-full bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center transition text-sm shadow hidden">
+                <i class="fa-solid fa-camera-rotate"></i>
+            </button>
+            <button onclick="terminateActiveCall()" class="w-14 h-14 rounded-full bg-red-600 hover:bg-red-500 text-white flex items-center justify-center transition text-lg shadow-lg shadow-red-600/30">
+                <i class="fa-solid fa-phone-slash"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Incoming Call Ringing Popup Modal -->
+    <div id="incomingCallModal" class="fixed inset-0 z-[110] bg-black/80 backdrop-blur-md hidden flex items-center justify-center p-4">
+        <div class="glass-panel w-full max-w-xs rounded-3xl p-6 text-center space-y-4 border border-slate-700 shadow-2xl animate-pulse">
+            <div id="incomingCallerAvatar" class="w-20 h-20 mx-auto rounded-full bg-gradient-to-tr from-purple-500 to-pink-500 flex items-center justify-center text-2xl font-bold text-white shadow-lg overflow-hidden">U</div>
+            <div class="space-y-1">
+                <h3 id="incomingCallerName" class="text-sm font-bold text-white">Incoming Call...</h3>
+                <p id="incomingCallTypeLabel" class="text-xs text-sky-400">Incoming Video Call</p>
+            </div>
+            <div class="flex gap-3 pt-2">
+                <button onclick="rejectIncomingCall()" class="flex-1 bg-red-600 hover:bg-red-500 py-2.5 rounded-xl text-xs font-bold text-white shadow flex items-center justify-center gap-1.5"><i class="fa-solid fa-phone-slash"></i> Decline</button>
+                <button onclick="acceptIncomingCall()" class="flex-1 bg-emerald-600 hover:bg-emerald-500 py-2.5 rounded-xl text-xs font-bold text-white shadow flex items-center justify-center gap-1.5"><i class="fa-solid fa-phone"></i> Accept</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="userActionModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="glass-panel w-full max-w-xs rounded-3xl p-5 space-y-3 shadow-2xl relative border border-slate-700 text-center">
+            <button onclick="closeUserActionModal()" class="absolute top-3 right-3 text-slate-400 hover:text-white text-xs bg-slate-800/80 p-1.5 rounded-full"><i class="fa-solid fa-xmark"></i></button>
+            <div class="space-y-1">
+                <div id="actionModalAvatar" class="w-12 h-12 mx-auto rounded-full bg-gradient-to-tr from-purple-500 to-pink-500 flex items-center justify-center font-bold text-base text-white shadow-lg overflow-hidden">U</div>
+                <h3 id="actionModalUsername" class="text-xs font-bold text-slate-100">Username</h3>
+            </div>
+            <div class="pt-2 space-y-2">
+                <button id="actionMsgBtn" class="w-full bg-sky-600 hover:bg-sky-500 py-2 rounded-xl text-xs font-bold transition text-white shadow flex items-center justify-center gap-1.5"><i class="fa-solid fa-comment"></i> Message</button>
+                <button id="actionProfileBtn" class="w-full bg-slate-800 hover:bg-slate-700 py-2 rounded-xl text-xs font-bold transition text-slate-200 shadow flex items-center justify-center gap-1.5"><i class="fa-solid fa-user"></i> Open Profile</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Followers / Following Modal -->
+    <div id="followListModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="glass-panel w-full max-w-xs rounded-3xl p-4 space-y-3 shadow-2xl relative border border-slate-700">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+                <h3 id="followListTitle" class="text-xs font-bold text-slate-100 uppercase tracking-wider">Users</h3>
+                <button onclick="closeFollowListModal()" class="text-slate-400 hover:text-white text-xs bg-slate-800 p-1 rounded-full"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div id="followListContainer" class="space-y-2 max-h-60 overflow-y-auto"></div>
+        </div>
+    </div>
+
+    <div id="commentModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div class="glass-panel w-full max-w-md h-[75vh] sm:h-[500px] rounded-t-3xl sm:rounded-3xl flex flex-col overflow-hidden shadow-2xl border border-slate-700">
+            <div class="p-3 border-b border-slate-800 flex justify-between items-center bg-slate-900/90 shrink-0">
+                <h3 class="text-xs font-bold text-slate-200"><i class="fa-solid fa-comments text-pink-500 mr-1.5"></i> Comments</h3>
+                <button onclick="closeCommentModal()" class="text-slate-400 hover:text-white text-xs bg-slate-800 p-1.5 rounded-full"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div id="commentModalList" class="flex-1 overflow-y-auto p-3 space-y-2.5"></div>
+            <form id="commentModalForm" onsubmit="submitModalComment(event)" class="p-3 bg-slate-900 border-t border-slate-800 flex gap-2 shrink-0">
+                <input type="text" id="commentModalInput" placeholder="Add a comment..." required class="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-pink-500 text-slate-200">
+                <button type="submit" class="bg-pink-600 hover:bg-pink-500 px-4 py-2 rounded-xl text-xs font-bold text-white shadow"><i class="fa-solid fa-paper-plane"></i></button>
+            </form>
+        </div>
+    </div>
+
+    <div id="postDetailModal" class="fixed inset-0 z-50 bg-black/95 backdrop-blur-md hidden flex flex-col items-center justify-center p-0 sm:p-4">
+        <div class="w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-lg bg-darker sm:rounded-3xl overflow-hidden shadow-2xl border border-slate-800 flex flex-col relative">
+            <div class="p-3 border-b border-slate-800 flex justify-between items-center bg-slate-900/90 shrink-0 z-10">
+                <span id="detailPostUser" class="text-xs font-bold text-slate-200">Post View</span>
+                <button onclick="closePostDetailModal()" class="text-slate-400 hover:text-white text-xs bg-slate-800 p-2 rounded-full"><i class="fa-solid fa-xmark text-sm"></i></button>
+            </div>
+            <div id="detailPostContentContainer" class="flex-1 overflow-y-auto flex flex-col justify-center items-center p-2"></div>
+        </div>
+    </div>
+
+    <!-- Reel Upload Modal with Background Sync -->
+    <div id="reelUploadModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md hidden flex items-center justify-center p-4">
+        <div class="glass-panel w-full max-w-sm rounded-3xl p-5 space-y-4 border border-slate-700 shadow-2xl">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+                <h3 class="text-xs font-bold text-slate-200"><i class="fa-solid fa-clapperboard text-pink-500 mr-1.5"></i> Upload New Reel</h3>
+                <button onclick="closeReelUploadModal()" class="text-slate-400 hover:text-white text-xs bg-slate-800 p-1.5 rounded-full"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form id="reelUploadForm" onsubmit="submitReelUpload(event)" class="space-y-3">
+                <div>
+                    <label class="text-[11px] font-semibold text-slate-400 block mb-1">Select Video</label>
+                    <input type="file" id="reelVideoFileInput" accept="video/*" required class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2 text-xs text-slate-300 file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-pink-600 file:text-white hover:file:bg-pink-500">
+                </div>
+                <div>
+                    <label class="text-[11px] font-semibold text-slate-400 block mb-1">Caption</label>
+                    <textarea id="reelCaptionInput" rows="3" placeholder="Write a caption for your reel..." required class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200 focus:outline-none focus:border-pink-500 resize-none"></textarea>
+                </div>
+                <div id="reelUploadStatus" class="text-[10px] text-sky-400 hidden text-center font-bold">Uploading in background... You can safely back out.</div>
+                <button type="submit" id="reelUploadBtn" class="w-full bg-gradient-to-r from-purple-600 to-pink-600 font-bold py-2.5 rounded-xl text-xs text-white shadow">Publish Reel</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="profileModal" class="fixed inset-0 z-50 bg-black/95 backdrop-blur-lg hidden flex flex-col overflow-hidden">
+        <div class="w-full max-w-xl mx-auto h-full flex flex-col glass-panel border-x border-slate-800">
+            <div class="h-12 px-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/90 shrink-0">
+                <button onclick="closeProfileModal()" class="text-slate-400 hover:text-white text-xs bg-slate-800 px-3 py-1.5 rounded-xl"><i class="fa-solid fa-arrow-left mr-1"></i> Back</button>
+                <span id="modalUsernameHeader" class="text-xs font-bold text-slate-200">Profile</span>
+                <div class="w-12"></div>
+            </div>
+
+            <div class="flex-1 overflow-y-auto">
+                <div class="p-4 space-y-4">
+                    <div class="flex items-center space-x-4 relative">
+                        <div class="relative group shrink-0">
+                            <div id="modalUserAvatar" class="w-16 h-16 rounded-full bg-gradient-to-tr from-purple-500 to-pink-500 flex items-center justify-center font-bold text-2xl text-white shadow-xl overflow-hidden">U</div>
+                            <label id="profileAvatarEditBtn" class="hidden absolute inset-0 bg-black/60 rounded-full items-center justify-center cursor-pointer text-white text-xs opacity-0 group-hover:opacity-100 transition">
+                                <i class="fa-solid fa-pencil"></i>
+                                <input type="file" id="profileImageFileInput" accept="image/*" class="hidden" onchange="openCropperModal(this)">
+                            </label>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <h3 id="modalUsername" class="text-sm font-bold text-slate-100 truncate">Username</h3>
+                            <p class="text-[10px] text-emerald-400"><i class="fa-solid fa-circle text-[8px] mr-1"></i> Active on Nexus</p>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-2 bg-slate-900/80 border border-slate-800 rounded-2xl p-2.5 text-center text-xs">
+                        <div>
+                            <p id="profilePostsCount" class="font-black text-slate-200">0</p>
+                            <p class="text-[10px] text-slate-400">Posts</p>
+                        </div>
+                        <div onclick="openFollowList('followers')" class="cursor-pointer hover:bg-slate-800/50 rounded-xl p-1 transition">
+                            <p id="profileFollowersCount" class="font-black text-slate-200">0</p>
+                            <p class="text-[10px] text-slate-400">Followers</p>
+                        </div>
+                        <div onclick="openFollowList('following')" class="cursor-pointer hover:bg-slate-800/50 rounded-xl p-1 transition">
+                            <p id="profileFollowingCount" class="font-black text-slate-200">0</p>
+                            <p class="text-[10px] text-slate-400">Following</p>
+                        </div>
+                    </div>
+
+                    <div id="profileOtherActions" class="hidden flex gap-2 pt-1">
+                        <button id="profileFollowBtn" onclick="toggleFollowProfileUser()" class="flex-1 bg-pink-600 hover:bg-pink-500 py-2 rounded-xl text-xs font-bold transition text-white shadow">Follow</button>
+                        <button id="profileModalChatBtn" class="flex-1 bg-sky-600 hover:bg-sky-500 py-2 rounded-xl text-xs font-bold transition text-white shadow"><i class="fa-solid fa-comment mr-1"></i> Message</button>
+                    </div>
+
+                    <div id="editProfileSection" class="hidden space-y-2.5 bg-slate-900/50 p-3 rounded-2xl border border-slate-800">
+                        <p class="text-[11px] font-bold text-pink-400"><i class="fa-solid fa-pen-to-square mr-1"></i> Edit Profile Username</p>
+                        <div class="space-y-1">
+                            <input type="text" id="editUsernameInput" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-pink-500">
+                        </div>
+                        <button onclick="saveProfileChanges()" class="w-full bg-gradient-to-r from-purple-600 to-pink-600 font-bold py-1.5 rounded-xl text-xs shadow">Save Username</button>
+                    </div>
+
+                    <div class="flex border-t border-b border-slate-800 text-xs font-bold">
+                        <button onclick="switchProfileTab('posts')" id="profTabPostsBtn" class="flex-1 py-2 text-center text-pink-400 border-b-2 border-pink-500 transition"><i class="fa-solid fa-table-cells mr-1"></i> Posts</button>
+                        <button onclick="switchProfileTab('reels')" id="profTabReelsBtn" class="flex-1 py-2 text-center text-slate-400 border-b-2 border-transparent transition"><i class="fa-solid fa-clapperboard mr-1"></i> Reels</button>
+                    </div>
+
+                    <div id="profileGridContainer" class="grid grid-cols-3 gap-1 pb-10"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="cropperModal" class="fixed inset-0 z-50 bg-black/90 backdrop-blur-md hidden flex flex-col items-center justify-center p-4">
+        <div class="glass-panel w-full max-w-sm rounded-3xl p-4 space-y-3 text-center">
+            <h3 class="text-xs font-bold text-slate-200">Adjust Circular Profile Picture</h3>
+            <div class="w-64 h-64 mx-auto bg-slate-950 rounded-2xl overflow-hidden border border-slate-800 flex items-center justify-center">
+                <img id="imageToCrop" style="max-width: 100%; display: block;" />
+            </div>
+            <div class="flex gap-2 pt-2">
+                <button onclick="cancelCropper()" class="flex-1 bg-slate-800 hover:bg-slate-700 py-2 rounded-xl text-xs font-bold text-slate-300">Cancel</button>
+                <button onclick="cropAndUploadImage()" class="flex-1 bg-pink-600 hover:bg-pink-500 py-2 rounded-xl text-xs font-bold text-white">Save Photo</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="main-app" class="hidden h-full flex flex-col overflow-hidden">
+        
+        <header id="mainNavbar" class="glass-panel shrink-0 border-b border-slate-800/80 z-40">
+            <div class="w-full max-w-xl mx-auto px-3 h-12 flex justify-between items-center">
+                <div class="flex items-center space-x-1.5">
+                    <div class="w-7 h-7 bg-gradient-to-tr from-purple-600 to-pink-600 rounded-lg flex items-center justify-center text-white font-bold text-xs shadow">
+                        <i class="fa-solid fa-layer-group"></i>
+                    </div>
+                    <span class="text-xs font-black tracking-tight bg-gradient-to-r from-purple-400 via-pink-400 to-sky-400 bg-clip-text text-transparent">Nexus</span>
+                </div>
+
+                <nav class="flex space-x-0.5 bg-slate-900/90 p-0.5 rounded-lg border border-slate-800">
+                    <button onclick="switchTab('feed')" id="tab-feed" class="px-2 py-1 rounded-md text-[11px] font-bold fast-transition">Feed</button>
+                    <button onclick="switchTab('chat')" id="tab-chat" class="px-2 py-1 rounded-md text-[11px] font-bold fast-transition">Chat</button>
+                    <button onclick="switchTab('reels')" id="tab-reels" class="px-2 py-1 rounded-md text-[11px] font-bold fast-transition">Reels</button>
+                    <button onclick="switchTab('calls')" id="tab-calls" class="px-2 py-1 rounded-md text-[11px] font-bold fast-transition">Calls</button>
+                </nav>
+
+                <div class="flex items-center space-x-1.5">
+                    <span id="displayUsername" onclick="openProfile(currentUser)" class="text-[11px] font-bold px-2 py-1 bg-slate-900 border border-slate-800 rounded-lg text-slate-300 truncate max-w-[80px] cursor-pointer hover:text-pink-400 transition" title="Tap to open your profile">User</span>
+                    <button onclick="logout()" class="p-1.5 text-slate-400 hover:text-red-400 transition text-xs rounded-lg hover:bg-slate-900" title="Logout"><i class="fa-solid fa-power-off"></i></button>
+                </div>
+            </div>
+        </header>
+
+        <main class="w-full max-w-xl mx-auto flex-1 flex flex-col min-h-0 overflow-hidden px-2 py-2">
+
+            <section id="section-feed" class="flex-1 overflow-y-auto space-y-3 pb-16">
+                <div class="glass-panel rounded-2xl p-2.5 shadow-lg flex items-center space-x-2 shrink-0">
+                    <i class="fa-solid fa-search text-pink-500 text-xs pl-1"></i>
+                    <input type="text" id="globalUserSearch" oninput="handleGlobalSearch(this.value)" placeholder="Search user ID across app..." 
+                        class="w-full bg-transparent text-xs focus:outline-none text-slate-200 placeholder-slate-500">
+                </div>
+                <div id="searchResultsDropdown" class="glass-panel rounded-xl shadow-xl hidden divide-y divide-slate-800 max-h-40 overflow-y-auto shrink-0"></div>
+
+                <div class="glass-panel rounded-2xl p-3 shadow-lg space-y-2.5 w-full shrink-0">
+                    <h2 class="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                        <i class="fa-solid fa-pen-nib text-pink-500"></i> Create Omni-Post
+                    </h2>
+                    <form id="postForm" class="space-y-2">
+                        <div id="postInputGrid" class="grid grid-cols-1 gap-2">
+                            <select id="postPlatform" onchange="handlePlatformChange()" class="bg-slate-900 border border-slate-800 rounded-xl px-2 py-1.5 text-xs focus:outline-none focus:border-pink-500 text-slate-200 w-full">
+                                <option value="Twitter">🐦 Twitter</option>
+                                <option value="Instagram">📸 Instagram</option>
+                                <option value="Telegram">📢 Telegram</option>
+                            </select>
+                            
+                            <label id="imageUploadWrapper" class="hidden cursor-pointer bg-slate-900 border border-slate-800 hover:border-pink-500 rounded-xl px-2 py-1.5 text-xs items-center justify-center gap-1.5 text-slate-300 truncate transition">
+                                <i class="fa-solid fa-image text-pink-400"></i>
+                                <span id="fileChosenLabel" class="truncate">Select Photo</span>
+                                <input type="file" id="postImageFile" accept="image/*" class="hidden" onchange="handleFileSelect(this)">
+                            </label>
+                        </div>
+                        <textarea id="postContentInput" rows="2" placeholder="Broadcast thought..." required
+                            class="w-full bg-slate-900 border border-slate-800 rounded-xl p-2 text-xs focus:outline-none focus:border-pink-500 resize-none text-slate-200"></textarea>
+                        
+                        <div id="uploadStatusText" class="text-[10px] text-sky-400 hidden">Uploading media to storage...</div>
+
+                        <div class="flex justify-end">
+                            <button type="submit" id="publishBtn" class="bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-90 font-bold px-3.5 py-1.5 rounded-xl text-xs shadow transition">Publish</button>
+                        </div>
+                    </form>
+                </div>
+                <div id="feedStream" class="space-y-3 w-full pb-6"></div>
+            </section>
+
+            <section id="section-chat" class="hidden flex-1 glass-panel rounded-2xl overflow-hidden shadow-2xl flex flex-col h-full min-h-0">
+                <div id="chatUsersView" class="flex-1 flex flex-col h-full overflow-hidden">
+                    <div class="p-3 border-b border-slate-800 bg-slate-900/60 shrink-0 space-y-2">
+                        <div class="flex justify-between items-center text-xs font-bold text-slate-300">
+                            <span><i class="fa-solid fa-users text-pink-500 mr-1.5"></i> Active Users</span>
+                            <span id="userCountBadge" class="px-2 py-0.5 rounded-full bg-slate-800 text-[10px] text-slate-400">0</span>
+                        </div>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 pl-2.5 flex items-center text-slate-500"><i class="fa-solid fa-search text-xs"></i></span>
+                            <input type="text" id="chatSearchInput" oninput="filterChatUsers(this.value)" placeholder="Search user to chat..." 
+                                class="w-full bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-3 py-1.5 text-xs focus:outline-none focus:border-sky-500 text-slate-200">
+                        </div>
+                    </div>
+                    <div id="usersListContainer" class="flex-1 overflow-y-auto divide-y divide-slate-800/50"></div>
+                </div>
+
+                <div id="chatRoomView" class="hidden flex-1 flex flex-col h-full bg-slate-950/80 overflow-hidden">
+                    <div class="h-12 px-3 border-b border-slate-800 bg-slate-900/95 text-xs font-bold text-slate-300 flex items-center justify-between shrink-0 z-20">
+                        <div class="flex items-center space-x-2 min-w-0">
+                            <button onclick="closeChatRoom()" class="text-slate-400 hover:text-white px-2 py-1 rounded-lg bg-slate-800 text-xs transition shrink-0"><i class="fa-solid fa-arrow-left"></i> Back</button>
+                            <div class="min-w-0">
+                                <span id="chatWithTitle" class="text-slate-200 font-bold text-xs cursor-pointer hover:text-pink-400 transition block truncate">Chat</span>
+                                <span id="chatStatusText" class="text-[9px] font-semibold text-slate-500 flex items-center gap-1">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-slate-600" id="chatStatusDot"></span>
+                                    <span id="chatStatusLabel">Offline</span>
+                                </span>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-1.5 shrink-0">
+                            <button onclick="startRealCall(activeChatUser, 'audio')" title="Audio Call" class="w-8 h-8 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white flex items-center justify-center transition shadow"><i class="fa-solid fa-phone text-xs"></i></button>
+                            <button onclick="startRealCall(activeChatUser, 'video')" title="Video Call" class="w-8 h-8 rounded-full bg-purple-600 hover:bg-purple-500 text-white flex items-center justify-center transition shadow"><i class="fa-solid fa-video text-xs"></i></button>
+                        </div>
+                    </div>
+
+                    <!-- Real-Time Typing Indicator Bar -->
+                    <div id="typingIndicatorBar" class="hidden px-3 py-1 text-[10px] text-emerald-400 bg-slate-900/60 border-b border-slate-800 items-center gap-1.5 shrink-0 z-20">
+                        <span id="typingIndicatorText">typing</span>
+                        <span class="flex gap-0.5 items-end">
+                            <span class="w-1 h-1 bg-emerald-400 rounded-full animate-bounce" style="animation-delay:0ms"></span>
+                            <span class="w-1 h-1 bg-emerald-400 rounded-full animate-bounce" style="animation-delay:120ms"></span>
+                            <span class="w-1 h-1 bg-emerald-400 rounded-full animate-bounce" style="animation-delay:240ms"></span>
+                        </span>
+                    </div>
+
+                    <div id="chatMessagesBox" class="flex-1 px-3 py-3 overflow-y-auto space-y-2.5 flex flex-col min-h-0"></div>
+
+                    <!-- Reply Preview Bar: shows when replying to a message (swipe a message to trigger) -->
+                    <div id="replyPreviewBar" class="hidden px-3 py-2 bg-slate-900 border-t border-slate-800 items-center justify-between gap-2 shrink-0 z-20">
+                        <div class="flex-1 min-w-0 border-l-2 border-pink-500 pl-2">
+                            <p class="text-[10px] font-bold text-pink-400">Replying to <span id="replyPreviewSender"></span></p>
+                            <p class="text-[10px] text-slate-400 truncate" id="replyPreviewText"></p>
+                        </div>
+                        <button type="button" onclick="cancelReply()" class="text-slate-400 hover:text-white text-xs bg-slate-800 w-6 h-6 rounded-full flex items-center justify-center shrink-0"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+
+                    <!-- Chat Media Sharing Option Added Here -->
+                    <form id="chatForm" class="p-2 bg-slate-900 border-t border-slate-800 flex items-center gap-1.5 shrink-0 z-20">
+                        <label class="cursor-pointer bg-slate-800 hover:bg-slate-700 p-2 rounded-xl text-slate-300 transition text-xs flex items-center justify-center" title="Share Media (Photo/Video)">
+                            <i class="fa-solid fa-paperclip"></i>
+                            <input type="file" id="chatMediaFileInput" accept="image/*,video/*" class="hidden" onchange="handleChatMediaSelect(this)">
+                        </label>
+                        <input type="text" id="chatInputText" placeholder="Type message..." autocomplete="off" 
+                            class="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-sky-500 text-slate-200">
+                        <button type="submit" class="bg-sky-600 hover:bg-sky-500 px-3.5 py-2 rounded-xl text-xs font-bold transition shadow"><i class="fa-solid fa-paper-plane"></i></button>
+                    </form>
+                </div>
+            </section>
+
+            <section id="section-reels" class="hidden flex-1 flex flex-col relative overflow-hidden">
+                <div class="absolute top-2 right-3 z-30">
+                    <button onclick="openReelUploadModal()" class="bg-pink-600 hover:bg-pink-500 text-white w-9 h-9 rounded-full shadow-lg flex items-center justify-center font-bold transition active:scale-95" title="Upload Reel">
+                        <i class="fa-solid fa-plus text-xs"></i>
+                    </button>
+                </div>
+                <div id="reelsStreamContainer" class="reel-container flex-1"></div>
+            </section>
+
+            <section id="section-calls" class="hidden flex-1 flex flex-col h-full overflow-hidden p-2 space-y-3">
+                <div class="glass-panel rounded-2xl p-1 shadow-lg flex items-center gap-1 shrink-0">
+                    <button id="callSubTabNewBtn" onclick="switchCallSubTab('new')" class="flex-1 py-1.5 rounded-xl text-[11px] font-bold transition bg-pink-600 text-white shadow"><i class="fa-solid fa-phone mr-1"></i> New Call</button>
+                    <button id="callSubTabHistoryBtn" onclick="switchCallSubTab('history')" class="flex-1 py-1.5 rounded-xl text-[11px] font-bold transition text-slate-400 hover:text-slate-200"><i class="fa-solid fa-clock-rotate-left mr-1"></i> History</button>
+                </div>
+
+                <div id="callNewSubView" class="flex-1 flex flex-col overflow-hidden space-y-3">
+                    <div class="glass-panel rounded-2xl p-3 shadow-lg flex items-center space-x-2 shrink-0">
+                        <i class="fa-solid fa-search text-sky-400 text-xs pl-1"></i>
+                        <input type="text" id="callUserSearchInput" oninput="filterCallUsers(this.value)" placeholder="Search user ID for live calling..." 
+                            class="w-full bg-transparent text-xs focus:outline-none text-slate-200 placeholder-slate-500">
+                    </div>
+                    <div id="callUsersContainer" class="flex-1 overflow-y-auto space-y-2"></div>
+                </div>
+
+                <div id="callHistorySubView" class="hidden flex-1 overflow-y-auto space-y-2">
+                    <div id="callHistoryContainer" class="space-y-2"></div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <script>
+        const SUPABASE_URL = "https://ydjbojsqeujahgqinfmk.supabase.co";
+        const SUPABASE_ANON_KEY = "sb_publishable_jxLWxWU876psNuIx-P7cCw_NR9JHzyI";
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        
+        const FIXED_PASSWORD = "272009";
+        let currentUser = localStorage.getItem('nexus_user') || null;
+        let activeChatUser = localStorage.getItem('nexus_active_chat') || null;
+        let currentTab = localStorage.getItem('nexus_tab') || 'feed';
+        let messagePollingInterval = null;
+        let selectedFileObject = null;
+        let selectedChatMediaObject = null;
+        let cachedAllUsers = [];
+        let globalPostsCache = [];
+        let globalProfilesCache = {};
+        let globalFollowsCache = [];
+        let globalLikesCache = [];
+        let globalCommentsCache = [];
+        let viewingProfileUsername = null;
+        let profileActiveTab = 'posts';
+        let activeModalPostId = null;
+        let cropper = null;
+
+        // Online/Offline Presence, Typing Indicator & Reply-to-Message states
+        let onlineUsersSet = new Set();
+        let presenceChannel = null;
+        let typingSendChannel = null;
+        let typingReceiveChannel = null;
+        let typingHideTimeout = null;
+        let lastTypingSentAt = 0;
+        let replyingToMessage = null; // { id, sender, text }
+        let currentChatMessagesMap = {};
+
+        // True WebRTC Signaling Calling States
+        let activeCallStream = null;
+        let peerConnection = null;
+        let incomingCallData = null;
+        let targetCallingUser = null;
+        let isCallMuted = false;
+        let isCameraOff = false;
+        let currentFacingMode = 'user';
+        let isEarpieceAudio = false;
+
+        const rtcConfig = {
+            iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+        };
+
+        window.addEventListener('DOMContentLoaded', () => {
+            handlePlatformChange();
+
+            // Request Browser Notification Permission on Load
+            if ("Notification" in window && Notification.permission !== "granted") {
+                Notification.requestPermission();
+            }
+
+            if (currentUser) {
+                initApp(currentUser);
+            }
+
+            document.getElementById('loginForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const username = document.getElementById('loginUsername').value.trim();
+                const password = document.getElementById('loginPassword').value.trim();
+                const errorEl = document.getElementById('loginError');
+
+                if (password !== FIXED_PASSWORD) {
+                    errorEl.classList.remove('hidden');
+                    return;
+                }
+
+                errorEl.classList.add('hidden');
+                await supabaseClient.from('profiles').upsert({ username }, { onConflict: 'username' });
+
+                localStorage.setItem('nexus_user', username);
+                currentUser = username;
+                initApp(username);
+            });
+
+            document.getElementById('postForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const platform = document.getElementById('postPlatform').value;
+                const content = document.getElementById('postContentInput').value.trim();
+                if (!content) return;
+
+                let finalImageUrl = null;
+                const publishBtn = document.getElementById('publishBtn');
+                const statusText = document.getElementById('uploadStatusText');
+
+                if (selectedFileObject) {
+                    publishBtn.disabled = true;
+                    statusText.classList.remove('hidden');
+
+                    try {
+                        const fileName = `${Date.now()}_${selectedFileObject.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
+                        const { data: uploadData, error: uploadError } = await supabaseClient.storage
+                            .from('media')
+                            .upload(fileName, selectedFileObject);
+
+                        if (!uploadError) {
+                            const { data: publicUrlData } = supabaseClient.storage
+                                .from('media')
+                                .getPublicUrl(fileName);
+                            finalImageUrl = publicUrlData.publicUrl;
+                        }
+                    } catch (err) {
+                        console.error(err);
+                    }
+
+                    publishBtn.disabled = false;
+                    statusText.classList.add('hidden');
+                }
+
+                await supabaseClient.from('posts').insert({
+                    username: currentUser,
+                    platform,
+                    content,
+                    image_url: finalImageUrl,
+                    likes_count: 0
+                });
+
+                document.getElementById('postContentInput').value = '';
+                const fileInput = document.getElementById('postImageFile');
+                if(fileInput) fileInput.value = '';
+                document.getElementById('fileChosenLabel').innerText = 'Select Photo';
+                selectedFileObject = null;
+                fetchAllData();
+            });
+
+            document.getElementById('chatForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                if (!activeChatUser) return;
+                const text = document.getElementById('chatInputText').value.trim();
+                if (!text && !selectedChatMediaObject) return;
+
+                let mediaUrl = null;
+                if (selectedChatMediaObject) {
+                    try {
+                        const fileName = `chat_${Date.now()}_${selectedChatMediaObject.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
+                        const { error: uploadErr } = await supabaseClient.storage.from('media').upload(fileName, selectedChatMediaObject);
+                        if (!uploadErr) {
+                            const { data: pubData } = supabaseClient.storage.from('media').getPublicUrl(fileName);
+                            mediaUrl = pubData.publicUrl;
+                        }
+                    } catch(err) {
+                        console.error(err);
+                    }
+                }
+
+                const messagePayload = {
+                    sender: currentUser,
+                    receiver: activeChatUser,
+                    text: text || '[Media Attachment]',
+                    media_url: mediaUrl
+                };
+
+                // Attach reply-to details (swipe-to-reply) if the user is replying to a message
+                if (replyingToMessage) {
+                    messagePayload.reply_to_id = replyingToMessage.id;
+                    messagePayload.reply_to_sender = replyingToMessage.sender;
+                    messagePayload.reply_to_text = replyingToMessage.text;
+                }
+
+                await supabaseClient.from('messages').insert(messagePayload);
+
+                document.getElementById('chatInputText').value = '';
+                selectedChatMediaObject = null;
+                document.getElementById('chatMediaFileInput').value = '';
+                cancelReply();
+                loadDirectMessages(activeChatUser, true);
+            });
+
+            // Sends a real-time typing broadcast to the active chat partner as the user types
+            document.getElementById('chatInputText').addEventListener('input', () => {
+                if (activeChatUser) sendTypingBroadcast();
+            });
+        });
+
+        function handleChatMediaSelect(input) {
+            if (input.files && input.files[0]) {
+                selectedChatMediaObject = input.files[0];
+                alert(`Media attached: ${selectedChatMediaObject.name}. Now click send.`);
+            }
+        }
+
+        function handlePlatformChange() {
+            const platform = document.getElementById('postPlatform').value;
+            const grid = document.getElementById('postInputGrid');
+            const wrapper = document.getElementById('imageUploadWrapper');
+
+            if (platform === 'Twitter') {
+                grid.className = "grid grid-cols-1 gap-2";
+                wrapper.classList.add('hidden');
+                wrapper.classList.remove('flex');
+                selectedFileObject = null;
+            } else {
+                grid.className = "grid grid-cols-2 gap-2";
+                wrapper.classList.remove('hidden');
+                wrapper.classList.add('flex');
+            }
+        }
+
+        function handleFileSelect(input) {
+            if (input.files && input.files[0]) {
+                selectedFileObject = input.files[0];
+                document.getElementById('fileChosenLabel').innerText = selectedFileObject.name;
+            }
+        }
+
+        async function initApp(username) {
+            document.getElementById('auth-screen').classList.add('hidden');
+            document.getElementById('main-app').classList.remove('hidden');
+            document.getElementById('displayUsername').innerText = username;
+            
+            await fetchAllData();
+            switchTab(currentTab);
+
+            if (activeChatUser) {
+                selectChatUser(activeChatUser, false);
+            } else {
+                loadLoggedUsers();
+            }
+
+            // Online/Offline Presence Tracking - marks this user online and listens for others
+            presenceChannel = supabaseClient.channel('online-users', {
+                config: { presence: { key: username } }
+            });
+            presenceChannel.on('presence', { event: 'sync' }, () => {
+                const state = presenceChannel.presenceState();
+                onlineUsersSet = new Set(Object.keys(state));
+                updateOnlineStatusUI();
+                if (cachedAllUsers.length) renderUsersList(cachedAllUsers);
+            }).subscribe(async (status) => {
+                if (status === 'SUBSCRIBED') {
+                    await presenceChannel.track({ online_at: new Date().toISOString() });
+                }
+            });
+
+            // Real-Time Typing Indicator Listener - shows "typing..." when the active chat partner is typing
+            typingReceiveChannel = supabaseClient.channel('typing_' + username);
+            typingReceiveChannel.on('broadcast', { event: 'typing' }, (payload) => {
+                const fromUser = payload.payload && payload.payload.from;
+                if (fromUser && fromUser === activeChatUser) {
+                    showTypingIndicator();
+                }
+            }).subscribe();
+
+            // Real-time listener for incoming WebRTC call signals & candidates
+            supabaseClient.channel('public:calls_' + username).on('postgres_changes', { 
+                event: 'INSERT', 
+                schema: 'public', 
+                table: 'calls',
+                filter: `callee_id=eq.${username}`
+            }, async payload => {
+                const callRecord = payload.new;
+                if (callRecord && callRecord.status === 'offer') {
+                    incomingCallData = callRecord;
+                    document.getElementById('incomingCallerName').innerText = `${callRecord.caller_id} is calling...`;
+                    document.getElementById('incomingCallTypeLabel').innerText = callRecord.call_type === 'video' ? 'Incoming Video Call' : 'Incoming Audio Call';
+                    const av = globalProfilesCache[callRecord.caller_id];
+                    document.getElementById('incomingCallerAvatar').innerHTML = av ? `<img src="${av}" class="w-full h-full object-cover">` : callRecord.caller_id.charAt(0).toUpperCase();
+                    document.getElementById('incomingCallModal').classList.remove('hidden');
+                } else if (callRecord && callRecord.status === 'ice' && peerConnection) {
+                    try {
+                        await peerConnection.addIceCandidate(new RTCIceCandidate(callRecord.ice_candidates));
+                    } catch(e) { console.error(e); }
+                }
+            }).subscribe();
+
+            // Real-Time Message Listener with Instant In-App Banner Pop-up, Chrome/System Background Notification & Chat List Reordering
+            supabaseClient.channel('public:messages_' + username).on('postgres_changes', { 
+                event: 'INSERT', 
+                schema: 'public', 
+                table: 'messages',
+                filter: `receiver=eq.${username}`
+            }, payload => {
+                const msg = payload.new;
+                if (!msg) return;
+
+                // 1. If currently inside this chat room, load direct messages
+                if (activeChatUser && msg.sender === activeChatUser) {
+                    loadDirectMessages(activeChatUser, true);
+                }
+
+                // 2. Trigger Real-Time Notification (In-App Banner Popup + System/Chrome Notification)
+                triggerNewMessageNotification(msg);
+
+                // 3. Reorder Chat Section list instantly so the sender's ID appears at the very top
+                loadLoggedUsers();
+            }).subscribe();
+
+            supabaseClient.channel('public:messages_sent_' + username).on('postgres_changes', {
+                event: 'INSERT',
+                schema: 'public',
+                table: 'messages',
+                filter: `sender=eq.${username}`
+            }, () => {
+                loadLoggedUsers();
+            }).subscribe();
+
+            supabaseClient.channel('public:all_changes').on('postgres_changes', { event: '*', schema: 'public' }, async () => {
+                await fetchAllData();
+                if (viewingProfileUsername) openProfile(viewingProfileUsername, false);
+                if (activeModalPostId) renderCommentModal(activeModalPostId);
+            }).subscribe();
+        }
+
+        // Notification System Handler (In-App Banner + Background Chrome/System Notification)
+        function triggerNewMessageNotification(msg) {
+            const senderId = msg.sender;
+            const messageText = msg.text || 'Sent an attachment';
+
+            // A. Display In-App Notification Banner Pop-Up
+            const container = document.getElementById('inAppNotificationContainer');
+            if (container) {
+                const banner = document.createElement('div');
+                banner.className = "pointer-events-auto w-full max-w-sm glass-panel bg-slate-900/95 border border-pink-500/40 rounded-2xl p-3 shadow-2xl flex items-center space-x-3 animate-slide-down cursor-pointer";
+                const av = globalProfilesCache[senderId];
+                banner.innerHTML = `
+                    <div class="w-9 h-9 rounded-full bg-gradient-to-tr from-purple-500 to-pink-500 flex items-center justify-center font-bold text-xs text-white shrink-0 overflow-hidden shadow">
+                        ${av ? `<img src="${av}" class="w-full h-full object-cover">` : senderId.charAt(0).toUpperCase()}
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex justify-between items-center">
+                            <h4 class="text-xs font-bold text-white truncate">${senderId}</h4>
+                            <span class="text-[9px] text-pink-400 font-semibold">Just now</span>
+                        </div>
+                        <p class="text-[11px] text-slate-300 truncate">${messageText}</p>
+                    </div>
+                `;
+                banner.onclick = () => {
+                    banner.remove();
+                    switchTab('chat');
+                    selectChatUser(senderId, true);
+                };
+                container.appendChild(banner);
+
+                // Automatically dismiss banner after 4 seconds
+                setTimeout(() => {
+                    if (banner.parentNode) banner.remove();
+                }, 4000);
+            }
+
+            // B. Display Background Chrome/System Notification (works even if Chrome is minimized or in background)
+            if ("Notification" in window && Notification.permission === "granted") {
+                try {
+                    const notification = new Notification(`New message from ${senderId}`, {
+                        body: messageText,
+                        icon: globalProfilesCache[senderId] || undefined
+                    });
+                    notification.onclick = () => {
+                        window.focus();
+                        switchTab('chat');
+                        selectChatUser(senderId, true);
+                        notification.close();
+                    };
+                } catch(err) {
+                    console.error("System notification error:", err);
+                }
+            }
+        }
+
+        async function fetchAllData() {
+            try {
+                const { data: profiles } = await supabaseClient.from('profiles').select('*');
+                if (profiles) {
+                    globalProfilesCache = {};
+                    profiles.forEach(p => { if(p.username) globalProfilesCache[p.username] = p.avatar_url; });
+                }
+
+                const { data: follows } = await supabaseClient.from('follows').select('*');
+                globalFollowsCache = follows || [];
+
+                const { data: posts } = await supabaseClient.from('posts').select('*').order('created_at', { ascending: false });
+                globalPostsCache = posts || [];
+
+                const { data: likes } = await supabaseClient.from('post_likes').select('*');
+                globalLikesCache = likes || [];
+
+                const { data: comments } = await supabaseClient.from('comments').select('*').order('created_at', { ascending: true });
+                globalCommentsCache = comments || [];
+
+                renderFeed();
+                renderReels();
+                loadCallUsers("");
+            } catch(e) {
+                console.error(e);
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('nexus_user');
+            localStorage.removeItem('nexus_tab');
+            localStorage.removeItem('nexus_active_chat');
+            location.reload();
+        }
+
+        function switchTab(tab) {
+            currentTab = tab;
+            localStorage.setItem('nexus_tab', tab);
+
+            ['feed', 'chat', 'reels', 'calls'].forEach(t => {
+                document.getElementById('section-' + t).classList.add('hidden');
+                const btn = document.getElementById('tab-' + t);
+                btn.className = "px-2 py-1 rounded-md text-[11px] font-bold fast-transition text-slate-400 hover:text-slate-200";
+            });
+
+            document.getElementById('section-' + tab).classList.remove('hidden');
+            document.getElementById('tab-' + tab).className = "px-2 py-1 rounded-md text-[11px] font-bold fast-transition bg-pink-600 text-white shadow";
+            
+            if(tab === 'chat') {
+                if(!activeChatUser) {
+                    loadLoggedUsers();
+                    if(messagePollingInterval) clearInterval(messagePollingInterval);
+                } else {
+                    document.getElementById('chatUsersView').classList.add('hidden');
+                    document.getElementById('chatRoomView').classList.remove('hidden');
+                    document.getElementById('mainNavbar').classList.add('hidden');
+                }
+            } else {
+                if(messagePollingInterval) clearInterval(messagePollingInterval);
+            }
+        }
+
+        async function loadLoggedUsers() {
+            let userLastActivityMap = new Map(); // Stores username -> latest message timestamp for sorting
+
+            try {
+                // Initialize all profiles & posts with a default base timestamp
+                const { data: profiles } = await supabaseClient.from('profiles').select('username');
+                if (profiles) {
+                    profiles.forEach(p => { 
+                        if (p.username && p.username !== currentUser) {
+                            userLastActivityMap.set(p.username, new Date(0));
+                        } 
+                    });
+                }
+
+                globalPostsCache.forEach(p => { 
+                    if (p.username && p.username !== currentUser) {
+                        const existingTime = userLastActivityMap.get(p.username) || new Date(0);
+                        const postTime = new Date(p.created_at || 0);
+                        if (postTime > existingTime) userLastActivityMap.set(p.username, postTime);
+                    } 
+                });
+
+                // Fetch all messages involving the current user to sort chat section by most recent interaction (Instagram style)
+                const { data: msgs } = await supabaseClient.from('messages').select('sender, receiver, created_at, text');
+                if (msgs) {
+                    msgs.forEach(m => {
+                        let partner = null;
+                        if (m.sender === currentUser) partner = m.receiver;
+                        else if (m.receiver === currentUser) partner = m.sender;
+
+                        if (partner && partner !== currentUser) {
+                            const msgTime = new Date(m.created_at || Date.now());
+                            const existingTime = userLastActivityMap.get(partner) || new Date(0);
+                            if (msgTime > existingTime) {
+                                userLastActivityMap.set(partner, msgTime);
+                            }
+                        }
+                    });
+                }
+            } catch (err) {
+                console.error("Error loading users:", err);
+            }
+
+            // Sort users descending by latest activity timestamp (Instagram style: user who messaged last appears at the very top)
+            cachedAllUsers = Array.from(userLastActivityMap.entries())
+                .sort((a, b) => b[1] - a[1])
+                .map(entry => entry[0]);
+
+            renderUsersList(cachedAllUsers);
+        }
+
+        function renderUsersList(usersArray) {
+            const container = document.getElementById('usersListContainer');
+            container.innerHTML = '';
+            document.getElementById('userCountBadge').innerText = usersArray.length;
+
+            if (usersArray.length === 0) {
+                container.innerHTML = `<div class="p-6 text-center text-xs text-slate-500">No users found.</div>`;
+                return;
+            }
+
+            usersArray.forEach(username => {
+                const avatarUrl = globalProfilesCache[username];
+                const isOnline = onlineUsersSet.has(username);
+                const item = document.createElement('div');
+                item.className = `p-3 flex items-center space-x-3 cursor-pointer hover:bg-slate-800/60 fast-transition`;
+                item.innerHTML = `
+                    <div onclick="event.stopPropagation(); handleUserClick('${username}')" class="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-500 to-pink-500 flex items-center justify-center font-bold text-xs text-white shadow overflow-hidden relative">
+                        ${avatarUrl ? `<img src="${avatarUrl}" class="w-full h-full object-cover">` : username.charAt(0).toUpperCase()}
+                        ${isOnline ? `<span class="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-400 border border-slate-950"></span>` : ''}
+                    </div>
+                    <div class="flex-1 min-w-0" onclick="selectChatUser('${username}', true)">
+                        <p class="text-xs font-bold text-slate-200 truncate">${username}</p>
+                        <p class="text-[10px] ${isOnline ? 'text-emerald-400' : 'text-slate-500'} flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-400' : 'bg-slate-600'} inline-block"></span> ${isOnline ? 'Online' : 'Offline'}</p>
+                    </div>
+                    <i class="fa-solid fa-chevron-right text-xs text-slate-600"></i>
+                `;
+                item.onclick = () => selectChatUser(username, true);
+                container.appendChild(item);
+            });
+        }
+
+        function filterChatUsers(query) {
+            const filtered = cachedAllUsers.filter(u => u.toLowerCase().includes(query.toLowerCase()));
+            renderUsersList(filtered);
+        }
+
+        function filterCallUsers(query) {
+            loadCallUsers(query);
+        }
+
+        function loadCallUsers(filter = "") {
+            const container = document.getElementById('callUsersContainer');
+            if(!container) return;
+
+            let allPossible = [currentUser, ...cachedAllUsers];
+            const users = allPossible.filter(u => u && u !== currentUser && u.toLowerCase().includes(filter.toLowerCase()));
+
+            if(users.length === 0) {
+                container.innerHTML = `<div class="p-6 text-center text-xs text-slate-500">No users found for calls.</div>`;
+                return;
+            }
+
+            container.innerHTML = users.map(u => {
+                const av = globalProfilesCache[u];
+                return `
+                    <div class="glass-panel rounded-2xl p-3 flex items-center justify-between text-xs">
+                        <div class="flex items-center space-x-2.5 cursor-pointer" onclick="openProfile('${u}')">
+                            <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-500 to-pink-500 flex items-center justify-center text-xs text-white overflow-hidden shadow">${av ? `<img src="${av}" class="w-full h-full object-cover">` : u.charAt(0).toUpperCase()}</div>
+                            <span class="font-bold text-slate-200">${u}</span>
+                        </div>
+                        <div class="flex gap-1.5">
+                            <button onclick="startRealCall('${u}', 'audio')" class="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1 shadow"><i class="fa-solid fa-phone"></i> Audio</button>
+                            <button onclick="startRealCall('${u}', 'video')" class="bg-purple-600 hover:bg-purple-500 text-white px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1 shadow"><i class="fa-solid fa-video"></i> Video</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Call History Section: sub-tab switching between "New Call" and "History"
+        function switchCallSubTab(tab) {
+            const newBtn = document.getElementById('callSubTabNewBtn');
+            const historyBtn = document.getElementById('callSubTabHistoryBtn');
+            const newView = document.getElementById('callNewSubView');
+            const historyView = document.getElementById('callHistorySubView');
+
+            const activeClass = "flex-1 py-1.5 rounded-xl text-[11px] font-bold transition bg-pink-600 text-white shadow";
+            const inactiveClass = "flex-1 py-1.5 rounded-xl text-[11px] font-bold transition text-slate-400 hover:text-slate-200";
+
+            if (tab === 'history') {
+                newView.classList.add('hidden');
+                historyView.classList.remove('hidden');
+                newBtn.className = inactiveClass;
+                historyBtn.className = activeClass;
+                loadCallHistory();
+            } else {
+                historyView.classList.add('hidden');
+                newView.classList.remove('hidden');
+                newBtn.className = activeClass;
+                historyBtn.className = inactiveClass;
+            }
+        }
+
+        // Fetches call log (who called whom) from the 'calls' table using the 'offer' records
+        async function loadCallHistory() {
+            const container = document.getElementById('callHistoryContainer');
+            if (!container) return;
+            container.innerHTML = `<div class="p-6 text-center text-xs text-slate-500">Loading call history...</div>`;
+
+            try {
+                const { data: callLogs, error } = await supabaseClient
+                    .from('calls')
+                    .select('*')
+                    .eq('status', 'offer')
+                    .or(`caller_id.eq.${currentUser},callee_id.eq.${currentUser}`)
+                    .order('created_at', { ascending: false })
+                    .limit(50);
+
+                if (error || !callLogs || callLogs.length === 0) {
+                    container.innerHTML = `<div class="p-6 text-center text-xs text-slate-500">No call history yet.</div>`;
+                    return;
+                }
+
+                container.innerHTML = callLogs.map(log => {
+                    const isOutgoing = log.caller_id === currentUser;
+                    const otherUser = isOutgoing ? log.callee_id : log.caller_id;
+                    const av = globalProfilesCache[otherUser];
+                    const callTime = log.created_at ? new Date(log.created_at) : null;
+                    const timeLabel = callTime ? formatMessageTimestamp(callTime) : '';
+                    const typeIcon = log.call_type === 'video' ? 'fa-video' : 'fa-phone';
+
+                    return `
+                        <div class="glass-panel rounded-2xl p-3 flex items-center justify-between text-xs">
+                            <div class="flex items-center space-x-2.5 cursor-pointer" onclick="openProfile('${otherUser}')">
+                                <div class="w-9 h-9 rounded-full bg-gradient-to-tr from-purple-500 to-pink-500 flex items-center justify-center text-xs text-white overflow-hidden shadow">${av ? `<img src="${av}" class="w-full h-full object-cover">` : (otherUser ? otherUser.charAt(0).toUpperCase() : '?')}</div>
+                                <div>
+                                    <p class="font-bold text-slate-200">${otherUser}</p>
+                                    <p class="text-[10px] ${isOutgoing ? 'text-sky-400' : 'text-emerald-400'} flex items-center gap-1">
+                                        <i class="fa-solid ${isOutgoing ? 'fa-arrow-up-right' : 'fa-arrow-down-left'}"></i>
+                                        ${isOutgoing ? 'Outgoing' : 'Incoming'} · <i class="fa-solid ${typeIcon}"></i> ${log.call_type === 'video' ? 'Video' : 'Audio'}
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="flex flex-col items-end gap-1.5">
+                                <span class="text-[10px] text-slate-500">${timeLabel}</span>
+                                <button onclick="startRealCall('${otherUser}', '${log.call_type}')" class="bg-slate-800 hover:bg-slate-700 text-white w-7 h-7 rounded-full flex items-center justify-center transition"><i class="fa-solid ${typeIcon} text-[10px]"></i></button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (e) {
+                console.error(e);
+                container.innerHTML = `<div class="p-6 text-center text-xs text-slate-500">Could not load call history.</div>`;
+            }
+        }
+
+        // True Cross-Device WebRTC Real-Time Calling Engine
+        async function startRealCall(targetUser, type) {
+            targetCallingUser = targetUser;
+            const screen = document.getElementById('activeCallScreen');
+            const nameTitle = document.getElementById('callingUserNameTitle');
+            const statusText = document.getElementById('callStatusTimerText');
+            const avatarBox = document.getElementById('callUserAvatarBox');
+            const videoBtn = document.getElementById('callVideoBtn');
+            const flipBtn = document.getElementById('callFlipBtn');
+            const remoteVid = document.getElementById('remoteVideoElement');
+            const localVid = document.getElementById('localVideoElement');
+            const bgOverlay = document.getElementById('callBackgroundOverlay');
+
+            nameTitle.innerText = `Calling ${targetUser}...`;
+            statusText.innerText = 'Ringing other device...';
+            const av = globalProfilesCache[targetUser];
+            avatarBox.innerHTML = av ? `<img src="${av}" class="w-full h-full object-cover">` : targetUser.charAt(0).toUpperCase();
+            bgOverlay.classList.remove('hidden');
+
+            screen.classList.remove('hidden');
+            isCallMuted = false;
+            isCameraOff = false;
+            document.getElementById('muteIconElement').className = "fa-solid fa-microphone";
+
+            if (type === 'video') {
+                videoBtn.classList.remove('hidden');
+                flipBtn.classList.remove('hidden');
+                remoteVid.classList.remove('hidden');
+            } else {
+                videoBtn.classList.add('hidden');
+                flipBtn.classList.add('hidden');
+                remoteVid.classList.add('hidden');
+            }
+
+            try {
+                activeCallStream = await navigator.mediaDevices.getUserMedia({
+                    audio: true,
+                    video: type === 'video' ? { facingMode: currentFacingMode } : false
+                });
+
+                localVid.srcObject = activeCallStream;
+
+                peerConnection = new RTCPeerConnection(rtcConfig);
+                activeCallStream.getTracks().forEach(track => peerConnection.addTrack(track, activeCallStream));
+
+                peerConnection.ontrack = event => {
+                    if (event.streams && event.streams[0]) {
+                        remoteVid.srcObject = event.streams[0];
+                        statusText.innerText = 'Connected in Real-Time';
+                        bgOverlay.classList.add('hidden');
+                    }
+                };
+
+                peerConnection.onicecandidate = async event => {
+                    if (event.candidate) {
+                        await supabaseClient.from('calls').insert({
+                            caller_id: currentUser,
+                            callee_id: targetUser,
+                            call_type: type,
+                            status: 'ice',
+                            ice_candidates: event.candidate
+                        });
+                    }
+                };
+
+                const offer = await peerConnection.createOffer();
+                await peerConnection.setLocalDescription(offer);
+
+                await supabaseClient.from('calls').insert({
+                    caller_id: currentUser,
+                    callee_id: targetUser,
+                    call_type: type,
+                    status: 'offer',
+                    sdp_offer: offer
+                });
+
+                // Listen for Answer from callee
+                supabaseClient.channel('public:call_answer_' + currentUser).on('postgres_changes', {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'calls',
+                    filter: `caller_id=eq.${currentUser}`
+                }, async payload => {
+                    const record = payload.new;
+                    if (record && record.status === 'answer' && record.sdp_answer && peerConnection) {
+                        if (!peerConnection.currentRemoteDescription) {
+                            await peerConnection.setRemoteDescription(new RTCSessionDescription(record.sdp_answer));
+                            statusText.innerText = 'Connected in Real-Time';
+                            bgOverlay.classList.add('hidden');
+                        }
+                    } else if (record && record.status === 'ice' && record.ice_candidates && peerConnection) {
+                        try {
+                            await peerConnection.addIceCandidate(new RTCIceCandidate(record.ice_candidates));
+                        } catch(e) { console.error(e); }
+                    }
+                }).subscribe();
+
+            } catch (err) {
+                statusText.innerText = "Call Failed: Camera/Mic Permission Denied";
+            }
+        }
+
+        async function acceptIncomingCall() {
+            if (!incomingCallData) return;
+            document.getElementById('incomingCallModal').classList.add('hidden');
+
+            const screen = document.getElementById('activeCallScreen');
+            const nameTitle = document.getElementById('callingUserNameTitle');
+            const statusText = document.getElementById('callStatusTimerText');
+            const avatarBox = document.getElementById('callUserAvatarBox');
+            const videoBtn = document.getElementById('callVideoBtn');
+            const flipBtn = document.getElementById('callFlipBtn');
+            const remoteVid = document.getElementById('remoteVideoElement');
+            const localVid = document.getElementById('localVideoElement');
+            const bgOverlay = document.getElementById('callBackgroundOverlay');
+
+            targetCallingUser = incomingCallData.caller_id;
+            nameTitle.innerText = `${targetCallingUser}`;
+            statusText.innerText = 'Connecting live WebRTC call...';
+            const av = globalProfilesCache[targetCallingUser];
+            avatarBox.innerHTML = av ? `<img src="${av}" class="w-full h-full object-cover">` : targetCallingUser.charAt(0).toUpperCase();
+            bgOverlay.classList.remove('hidden');
+
+            screen.classList.remove('hidden');
+
+            if (incomingCallData.call_type === 'video') {
+                videoBtn.classList.remove('hidden');
+                flipBtn.classList.remove('hidden');
+                remoteVid.classList.remove('hidden');
+            } else {
+                videoBtn.classList.add('hidden');
+                flipBtn.classList.add('hidden');
+                remoteVid.classList.add('hidden');
+            }
+
+            try {
+                activeCallStream = await navigator.mediaDevices.getUserMedia({
+                    audio: true,
+                    video: incomingCallData.call_type === 'video' ? { facingMode: currentFacingMode } : false
+                });
+
+                localVid.srcObject = activeCallStream;
+
+                peerConnection = new RTCPeerConnection(rtcConfig);
+                activeCallStream.getTracks().forEach(track => peerConnection.addTrack(track, activeCallStream));
+
+                peerConnection.ontrack = event => {
+                    if (event.streams && event.streams[0]) {
+                        remoteVid.srcObject = event.streams[0];
+                        statusText.innerText = 'Connected in Real-Time';
+                        bgOverlay.classList.add('hidden');
+                    }
+                };
+
+                peerConnection.onicecandidate = async event => {
+                    if (event.candidate) {
+                        await supabaseClient.from('calls').insert({
+                            caller_id: targetCallingUser,
+                            callee_id: currentUser,
+                            call_type: incomingCallData.call_type,
+                            status: 'ice',
+                            ice_candidates: event.candidate
+                        });
+                    }
+                };
+
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(incomingCallData.sdp_offer));
+                const answer = await peerConnection.createAnswer();
+                await peerConnection.setLocalDescription(answer);
+
+                await supabaseClient.from('calls').insert({
+                    caller_id: targetCallingUser,
+                    callee_id: currentUser,
+                    call_type: incomingCallData.call_type,
+                    status: 'answer',
+                    sdp_answer: answer
+                });
+
+            } catch (err) {
+                statusText.innerText = "Call Connection Failed";
+            }
+        }
+
+        function rejectIncomingCall() {
+            document.getElementById('incomingCallModal').classList.add('hidden');
+            incomingCallData = null;
+        }
+
+        function toggleCallMute() {
+            if (!activeCallStream) return;
+            isCallMuted = !isCallMuted;
+            activeCallStream.getAudioTracks().forEach(track => { track.enabled = !isCallMuted; });
+            document.getElementById('muteIconElement').className = isCallMuted ? "fa-solid fa-microphone-slash text-red-400" : "fa-solid fa-microphone";
+        }
+
+        function toggleCallVideo() {
+            if (!activeCallStream) return;
+            isCameraOff = !isCameraOff;
+            activeCallStream.getVideoTracks().forEach(track => { track.enabled = !isCameraOff; });
+            document.getElementById('videoIconElement').className = isCameraOff ? "fa-solid fa-video-slash text-red-400" : "fa-solid fa-video";
+        }
+
+        async function flipCameraView() {
+            currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
+            if (activeCallStream) {
+                activeCallStream.getTracks().forEach(track => track.stop());
+            }
+            try {
+                activeCallStream = await navigator.mediaDevices.getUserMedia({
+                    audio: true,
+                    video: { facingMode: currentFacingMode }
+                });
+                document.getElementById('localVideoElement').srcObject = activeCallStream;
+                if (peerConnection) {
+                    const videoSender = peerConnection.getSenders().find(s => s.track && s.track.kind === 'video');
+                    if (videoSender) {
+                        videoSender.replaceTrack(activeCallStream.getVideoTracks()[0]);
+                    }
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function toggleAudioOutputRoute() {
+            isEarpieceAudio = !isEarpieceAudio;
+            const textEl = document.getElementById('audioRouteText');
+            const iconEl = document.getElementById('audioRouteIcon');
+            
+            if (isEarpieceAudio) {
+                textEl.innerText = "Earpiece/Headphone";
+                iconEl.className = "fa-solid fa-headphones";
+            } else {
+                textEl.innerText = "Speaker";
+                iconEl.className = "fa-solid fa-volume-high";
+            }
+        }
+
+        function terminateActiveCall() {
+            if (activeCallStream) {
+                activeCallStream.getTracks().forEach(track => track.stop());
+                activeCallStream = null;
+            }
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+            }
+            document.getElementById('activeCallScreen').classList.add('hidden');
+        }
+
+        function handleGlobalSearch(query) {
+            const dropdown = document.getElementById('searchResultsDropdown');
+            if(!query.trim()) {
+                dropdown.classList.add('hidden');
+                dropdown.innerHTML = '';
+                return;
+            }
+
+            const allPossible = [currentUser, ...cachedAllUsers];
+            const matches = allPossible.filter(u => u && u.toLowerCase().includes(query.toLowerCase()));
+            if(matches.length === 0) {
+                dropdown.innerHTML = `<div class="p-3 text-xs text-slate-500 text-center">No user found</div>`;
+                dropdown.classList.remove('hidden');
+                return;
+            }
+
+            let html = '';
+            matches.forEach(u => {
+                const av = globalProfilesCache[u];
+                html += `
+                    <div onclick="handleUserClick('${u}'); document.getElementById('searchResultsDropdown').classList.add('hidden'); document.getElementById('globalUserSearch').value='';" class="p-2.5 flex items-center space-x-2.5 cursor-pointer hover:bg-slate-800/80 text-xs font-bold text-slate-200">
+                        <div class="w-6 h-6 rounded-full bg-gradient-to-tr from-purple-500 to-pink-500 flex items-center justify-center text-[10px] text-white overflow-hidden">${av ? `<img src="${av}" class="w-full h-full object-cover">` : u.charAt(0).toUpperCase()}</div>
+                        <span>${u} ${u === currentUser ? '(You)' : ''}</span>
+                    </div>
+                `;
+            });
+            dropdown.innerHTML = html;
+            dropdown.classList.remove('hidden');
+        }
+
+        function handleUserClick(username) {
+            if (username === currentUser) {
+                openProfile(currentUser);
+            } else {
+                openUserActionModal(username);
+            }
+        }
+
+        function openUserActionModal(username) {
+            document.getElementById('actionModalUsername').innerText = username;
+            const av = globalProfilesCache[username];
+            document.getElementById('actionModalAvatar').innerHTML = av ? `<img src="${av}" class="w-full h-full object-cover">` : username.charAt(0).toUpperCase();
+            
+            document.getElementById('actionMsgBtn').onclick = () => {
+                closeUserActionModal();
+                switchTab('chat');
+                selectChatUser(username, true);
+            };
+
+            document.getElementById('actionProfileBtn').onclick = () => {
+                closeUserActionModal();
+                openProfile(username);
+            };
+
+            document.getElementById('userActionModal').classList.remove('hidden');
+        }
+
+        function closeUserActionModal() {
+            document.getElementById('userActionModal').classList.add('hidden');
+        }
+
+        function openProfile(username, resetTab = true) {
+            viewingProfileUsername = username;
+            if (resetTab) profileActiveTab = 'posts';
+
+            document.getElementById('modalUsernameHeader').innerText = username;
+            document.getElementById('modalUsername').innerText = username;
+            const av = globalProfilesCache[username];
+            document.getElementById('modalUserAvatar').innerHTML = av ? `<img src="${av}" class="w-full h-full object-cover">` : username.charAt(0).toUpperCase();
+            
+            const isMe = username === currentUser;
+            const editSection = document.getElementById('editProfileSection');
+            const otherActions = document.getElementById('profileOtherActions');
+            const editAvatarBtn = document.getElementById('profileAvatarEditBtn');
+
+            if (isMe) {
+                editSection.classList.remove('hidden');
+                otherActions.classList.add('hidden');
+                editAvatarBtn.classList.remove('hidden');
+                editAvatarBtn.classList.add('flex');
+                document.getElementById('editUsernameInput').value = currentUser;
+            } else {
+                editSection.classList.add('hidden');
+                otherActions.classList.remove('hidden');
+                editAvatarBtn.classList.add('hidden');
+                editAvatarBtn.classList.remove('flex');
+
+                const isFollowing = globalFollowsCache.some(f => f.follower === currentUser && f.following === username);
+                const followBtn = document.getElementById('profileFollowBtn');
+                followBtn.innerText = isFollowing ? 'Unfollow' : 'Follow';
+                followBtn.className = isFollowing ? 'flex-1 bg-slate-800 hover:bg-slate-700 py-2 rounded-xl text-xs font-bold transition text-slate-200 shadow' : 'flex-1 bg-pink-600 hover:bg-pink-500 py-2 rounded-xl text-xs font-bold transition text-white shadow';
+
+                document.getElementById('profileModalChatBtn').onclick = () => {
+                    closeProfileModal();
+                    switchTab('chat');
+                    selectChatUser(username, true);
+                };
+            }
+
+            const followersList = globalFollowsCache.filter(f => f.following === username);
+            const followingList = globalFollowsCache.filter(f => f.follower === username);
+            document.getElementById('profileFollowersCount').innerText = followersList.length;
+            document.getElementById('profileFollowingCount').innerText = followingList.length;
+
+            const userPostsAll = globalPostsCache.filter(p => p.username === username);
+            document.getElementById('profilePostsCount').innerText = userPostsAll.length;
+
+            renderProfileGrid();
+            document.getElementById('profileModal').classList.remove('hidden');
+        }
+
+        function switchProfileTab(tab) {
+            profileActiveTab = tab;
+            const postsBtn = document.getElementById('profTabPostsBtn');
+            const reelsBtn = document.getElementById('profTabReelsBtn');
+
+            if(tab === 'posts') {
+                postsBtn.className = "flex-1 py-2 text-center text-pink-400 border-b-2 border-pink-500 transition";
+                reelsBtn.className = "flex-1 py-2 text-center text-slate-400 border-b-2 border-transparent transition";
+            } else {
+                reelsBtn.className = "flex-1 py-2 text-center text-pink-400 border-b-2 border-pink-500 transition";
+                postsBtn.className = "flex-1 py-2 text-center text-slate-400 border-b-2 border-transparent transition";
+            }
+            renderProfileGrid();
+        }
+
+        function renderProfileGrid() {
+            const container = document.getElementById('profileGridContainer');
+            const userPosts = globalPostsCache.filter(p => {
+                const isReel = p.platform === 'Reel' || (p.image_url && p.image_url.match(/\.(mp4|mov|webm)$/i));
+                if (profileActiveTab === 'reels') return p.username === viewingProfileUsername && isReel;
+                return p.username === viewingProfileUsername && !isReel;
+            });
+
+            if (userPosts.length === 0) {
+                container.innerHTML = `<div class="col-span-3 text-center py-10 text-xs text-slate-500">No ${profileActiveTab} found.</div>`;
+                return;
+            }
+
+            container.innerHTML = userPosts.map(post => {
+                const isVideo = post.image_url && (post.platform === 'Reel' || post.image_url.match(/\.(mp4|mov|webm)$/i));
+                return `
+                    <div onclick="openPostDetailModal('${post.id}')" class="aspect-square bg-slate-900 border border-slate-800/80 rounded-sm overflow-hidden relative cursor-pointer group">
+                        ${isVideo ? 
+                            `<video src="${post.image_url}" class="w-full h-full object-cover"></video><div class="absolute top-1.5 right-1.5 bg-black/60 px-1.5 py-0.5 rounded text-[9px] text-white"><i class="fa-solid fa-clapperboard"></i></div>` :
+                            post.image_url ? 
+                                `<img src="${post.image_url}" class="w-full h-full object-cover">` : 
+                                `<div class="w-full h-full p-2 flex items-center justify-center text-[10px] text-slate-300 text-center bg-slate-950">${post.content.substring(0, 40)}...</div>`
+                        }
+                        <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center space-x-3 text-white text-xs font-bold">
+                            <span><i class="fa-solid fa-heart mr-1"></i>${globalLikesCache.filter(l => l.post_id === post.id).length}</span>
+                            <span><i class="fa-solid fa-comment mr-1"></i>${globalCommentsCache.filter(c => c.post_id === post.id).length}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function closeProfileModal() {
+            document.getElementById('profileModal').classList.add('hidden');
+            viewingProfileUsername = null;
+        }
+
+        async function toggleFollowProfileUser() {
+            if(!viewingProfileUsername || viewingProfileUsername === currentUser) return;
+            const isFollowing = globalFollowsCache.some(f => f.follower === currentUser && f.following === viewingProfileUsername);
+
+            if(isFollowing) {
+                await supabaseClient.from('follows').delete().eq('follower', currentUser).eq('following', viewingProfileUsername);
+            } else {
+                await supabaseClient.from('follows').insert({ follower: currentUser, following: viewingProfileUsername });
+            }
+            await fetchAllData();
+            openProfile(viewingProfileUsername, false);
+        }
+
+        async function toggleFollowFromFeed(targetUser) {
+            if(targetUser === currentUser) return;
+            const isFollowing = globalFollowsCache.some(f => f.follower === currentUser && f.following === targetUser);
+
+            if(isFollowing) {
+                await supabaseClient.from('follows').delete().eq('follower', currentUser).eq('following', targetUser);
+            } else {
+                await supabaseClient.from('follows').insert({ follower: currentUser, following: targetUser });
+            }
+            await fetchAllData();
+        }
+
+        function openFollowList(type) {
+            const titleEl = document.getElementById('followListTitle');
+            const container = document.getElementById('followListContainer');
+            container.innerHTML = '';
+
+            let users = [];
+            if(type === 'followers') {
+                titleEl.innerText = `${viewingProfileUsername}'s Followers`;
+                users = globalFollowsCache.filter(f => f.following === viewingProfileUsername).map(f => f.follower);
+            } else {
+                titleEl.innerText = `${viewingProfileUsername} is Following`;
+                users = globalFollowsCache.filter(f => f.follower === viewingProfileUsername).map(f => f.following);
+            }
+
+            if(users.length === 0) {
+                container.innerHTML = `<p class="text-xs text-slate-500 text-center py-4">No users found.</p>`;
+            } else {
+                users.forEach(u => {
+                    const av = globalProfilesCache[u];
+                    const div = document.createElement('div');
+                    div.className = "flex items-center justify-between bg-slate-900 border border-slate-800 p-2 rounded-xl text-xs cursor-pointer hover:bg-slate-800 transition";
+                    div.innerHTML = `
+                        <div class="flex items-center space-x-2 w-full">
+                            <div class="w-7 h-7 rounded-full bg-gradient-to-tr from-purple-500 to-pink-500 flex items-center justify-center font-bold text-[10px] text-white overflow-hidden shrink-0">${av ? `<img src="${av}" class="w-full h-full object-cover">` : u.charAt(0).toUpperCase()}</div>
+                            <span class="font-bold text-slate-200 truncate">${u}</span>
+                        </div>
+                    `;
+                    div.onclick = () => {
+                        closeFollowListModal();
+                        closeProfileModal();
+                        handleUserClick(u);
+                    };
+                    container.appendChild(div);
+                });
+            }
+
+            document.getElementById('followListModal').classList.remove('hidden');
+        }
+
+        function closeFollowListModal() {
+            document.getElementById('followListModal').classList.add('hidden');
+        }
+
+        function openCropperModal(input) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = document.getElementById('imageToCrop');
+                    img.src = e.target.result;
+                    document.getElementById('cropperModal').classList.remove('hidden');
+                    
+                    if (cropper) cropper.destroy();
+                    cropper = new Cropper(img, {
+                        aspectRatio: 1,
+                        viewMode: 1,
+                        dragMode: 'move',
+                        autoCropArea: 1,
+                        cropBoxMovable: true,
+                        cropBoxResizable: true,
+                        toggleDragModeOnDblclick: false,
+                    });
+                };
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        function cancelCropper() {
+            document.getElementById('cropperModal').classList.add('hidden');
+            if (cropper) { cropper.destroy(); cropper = null; }
+            document.getElementById('profileImageFileInput').value = '';
+        }
+
+        async function cropAndUploadImage() {
+            if (!cropper) return;
+            
+            const canvas = cropper.croppedCanvas || cropper.getCroppedCanvas({ width: 250, height: 250 });
+            canvas.toBlob(async (blob) => {
+                const fileName = `${Date.now()}_profile.jpg`;
+                const fileObj = new File([blob], fileName, { type: 'image/jpeg' });
+
+                try {
+                    const { data, error } = await supabaseClient.storage.from('media').upload(fileName, fileObj);
+                    if (!error) {
+                        const { data: publicUrlData } = supabaseClient.storage.from('media').getPublicUrl(fileName);
+                        const publicUrl = publicUrlData.publicUrl;
+
+                        await supabaseClient.from('profiles').upsert({ username: currentUser, avatar_url: publicUrl }, { onConflict: 'username' });
+                        globalProfilesCache[currentUser] = publicUrl;
+                        
+                        cancelCropper();
+                        await fetchAllData();
+                        openProfile(currentUser, false);
+                        alert("Profile picture updated successfully!");
+                    } else {
+                        alert("Upload failed. Make sure bucket 'media' is public.");
+                    }
+                } catch(err) {
+                    console.error(err);
+                }
+            }, 'image/jpeg');
+        }
+
+        async function saveProfileChanges() {
+            const newUsername = document.getElementById('editUsernameInput').value.trim();
+            if(!newUsername || newUsername === currentUser) return;
+
+            await supabaseClient.from('profiles').upsert({ username: newUsername, avatar_url: globalProfilesCache[currentUser] || null }, { onConflict: 'username' });
+            await supabaseClient.from('posts').update({ username: newUsername }).eq('username', currentUser);
+            
+            localStorage.setItem('nexus_user', newUsername);
+            currentUser = newUsername;
+            document.getElementById('displayUsername').innerText = newUsername;
+            closeProfileModal();
+            await fetchAllData();
+            alert("Username updated successfully!");
+        }
+
+        function selectChatUser(username, updateState = true) {
+            activeChatUser = username;
+            if(updateState) {
+                localStorage.setItem('nexus_active_chat', username);
+            }
+            
+            document.getElementById('mainNavbar').classList.add('hidden');
+            document.getElementById('chatUsersView').classList.add('hidden');
+            document.getElementById('chatRoomView').classList.remove('hidden');
+            
+            const titleEl = document.getElementById('chatWithTitle');
+            titleEl.innerText = username;
+            titleEl.onclick = () => openProfile(username);
+
+            updateOnlineStatusUI();
+            cancelReply();
+            hideTypingIndicator();
+
+            // (Re)create a dedicated broadcast channel to send typing signals to this chat partner
+            if (typingSendChannel) supabaseClient.removeChannel(typingSendChannel);
+            typingSendChannel = supabaseClient.channel('typing_' + username);
+            typingSendChannel.subscribe();
+            
+            loadDirectMessages(username, true);
+
+            if(messagePollingInterval) clearInterval(messagePollingInterval);
+            messagePollingInterval = setInterval(() => {
+                if(activeChatUser) {
+                    loadDirectMessages(activeChatUser, false);
+                }
+            }, 2500);
+        }
+
+        function closeChatRoom() {
+            activeChatUser = null;
+            localStorage.removeItem('nexus_active_chat');
+            if(messagePollingInterval) clearInterval(messagePollingInterval);
+            if(typingSendChannel) { supabaseClient.removeChannel(typingSendChannel); typingSendChannel = null; }
+            hideTypingIndicator();
+            cancelReply();
+            
+            document.getElementById('mainNavbar').classList.remove('hidden');
+            document.getElementById('chatRoomView').classList.add('hidden');
+            document.getElementById('chatUsersView').classList.remove('hidden');
+            loadLoggedUsers();
+        }
+
+        // Updates the online/offline dot + label in the chat header for the active chat partner
+        function updateOnlineStatusUI() {
+            if (!activeChatUser) return;
+            const dot = document.getElementById('chatStatusDot');
+            const label = document.getElementById('chatStatusLabel');
+            if (!dot || !label) return;
+
+            const isOnline = onlineUsersSet.has(activeChatUser);
+            dot.className = isOnline ? "w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" : "w-1.5 h-1.5 rounded-full bg-slate-600";
+            label.innerText = isOnline ? "Online" : "Offline";
+            label.className = isOnline ? "text-[9px] font-semibold text-emerald-400" : "text-[9px] font-semibold text-slate-500";
+        }
+
+        // Shows the "typing..." indicator bar and auto-hides it if no new typing signal arrives
+        function showTypingIndicator() {
+            const bar = document.getElementById('typingIndicatorBar');
+            const label = document.getElementById('typingIndicatorText');
+            if (!bar) return;
+            label.innerText = `${activeChatUser} is typing`;
+            bar.classList.remove('hidden');
+            bar.classList.add('flex');
+
+            if (typingHideTimeout) clearTimeout(typingHideTimeout);
+            typingHideTimeout = setTimeout(hideTypingIndicator, 2200);
+        }
+
+        function hideTypingIndicator() {
+            const bar = document.getElementById('typingIndicatorBar');
+            if (!bar) return;
+            bar.classList.add('hidden');
+            bar.classList.remove('flex');
+            if (typingHideTimeout) { clearTimeout(typingHideTimeout); typingHideTimeout = null; }
+        }
+
+        // Broadcasts a "typing" event to the active chat partner (throttled to avoid spamming)
+        function sendTypingBroadcast() {
+            if (!typingSendChannel || !activeChatUser) return;
+            const now = Date.now();
+            if (now - lastTypingSentAt < 1200) return;
+            lastTypingSentAt = now;
+            typingSendChannel.send({
+                type: 'broadcast',
+                event: 'typing',
+                payload: { from: currentUser }
+            });
+        }
+
+        // Formats a Date into a short "HH:MM" time label for message bubbles
+        function formatMessageTimestamp(date) {
+            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+
+        // Formats a Date into "Today", "Yesterday", or a full date for date separators
+        function formatDateSeparator(date) {
+            const today = new Date();
+            const yesterday = new Date();
+            yesterday.setDate(today.getDate() - 1);
+
+            const isSameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+
+            if (isSameDay(date, today)) return 'Today';
+            if (isSameDay(date, yesterday)) return 'Yesterday';
+            return date.toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
+        }
+
+        // Sets the message being replied to (triggered by swiping a message bubble) and shows the preview bar
+        function setReplyTarget(messageId) {
+            const msg = currentChatMessagesMap[messageId];
+            if (!msg) return;
+            replyingToMessage = {
+                id: msg.id,
+                sender: msg.sender === currentUser ? 'You' : msg.sender,
+                text: msg.text
+            };
+
+            document.getElementById('replyPreviewSender').innerText = replyingToMessage.sender;
+            document.getElementById('replyPreviewText').innerText = replyingToMessage.text;
+            const bar = document.getElementById('replyPreviewBar');
+            bar.classList.remove('hidden');
+            bar.classList.add('flex');
+            document.getElementById('chatInputText').focus();
+        }
+
+        function cancelReply() {
+            replyingToMessage = null;
+            const bar = document.getElementById('replyPreviewBar');
+            if (!bar) return;
+            bar.classList.add('hidden');
+            bar.classList.remove('flex');
+        }
+
+        // Swipe-to-reply gesture: swipe your own message LEFT, or the other person's message RIGHT, to reply to it
+        (function setupSwipeToReply() {
+            let dragState = null;
+
+            function onPointerDown(e) {
+                const wrapper = e.target.closest('.msg-swipe-item');
+                if (!wrapper) return;
+                dragState = {
+                    wrapper,
+                    startX: e.clientX,
+                    isMe: wrapper.dataset.isMe === '1',
+                    msgId: wrapper.dataset.msgId,
+                    dragging: true
+                };
+            }
+
+            function onPointerMove(e) {
+                if (!dragState || !dragState.dragging) return;
+                let delta = e.clientX - dragState.startX;
+
+                // Restrict movement to the allowed direction only: own messages swipe left (negative), others swipe right (positive)
+                if (dragState.isMe) {
+                    delta = Math.min(0, Math.max(delta, -70));
+                } else {
+                    delta = Math.max(0, Math.min(delta, 70));
+                }
+
+                dragState.wrapper.style.transform = `translateX(${delta}px)`;
+                dragState.lastDelta = delta;
+            }
+
+            function onPointerUp() {
+                if (!dragState) return;
+                const delta = dragState.lastDelta || 0;
+                dragState.wrapper.style.transform = 'translateX(0px)';
+
+                if (Math.abs(delta) > 45) {
+                    setReplyTarget(dragState.msgId);
+                }
+                dragState = null;
+            }
+
+            document.addEventListener('DOMContentLoaded', () => {
+                const chatBox = document.getElementById('chatMessagesBox');
+                if (!chatBox) return;
+                chatBox.addEventListener('pointerdown', onPointerDown);
+                chatBox.addEventListener('pointermove', onPointerMove);
+                chatBox.addEventListener('pointerup', onPointerUp);
+                chatBox.addEventListener('pointerleave', onPointerUp);
+                chatBox.addEventListener('pointercancel', onPointerUp);
+            });
+        })();
+
+        async function loadDirectMessages(targetUser, forceScroll = false) {
+            const { data: messages, error } = await supabaseClient
+                .from('messages')
+                .select('*')
+                .or(`and(sender.eq.${currentUser},receiver.eq.${targetUser}),and(sender.eq.${targetUser},receiver.eq.${currentUser})`)
+                .order('created_at', { ascending: true });
+
+            const chatBox = document.getElementById('chatMessagesBox');
+            
+            if (error || !messages || messages.length === 0) {
+                chatBox.innerHTML = `<div class="text-center text-xs text-slate-500 my-auto">No messages yet with ${targetUser}. Say hello! 👋</div>`;
+                return;
+            }
+
+            let htmlContent = '';
+            let lastDateLabel = null;
+            currentChatMessagesMap = {}; // reset lookup map used by swipe-to-reply
+
+            messages.forEach(msg => {
+                currentChatMessagesMap[msg.id] = msg;
+
+                const isMe = msg.sender === currentUser;
+                const isVideoMedia = msg.media_url && msg.media_url.match(/\.(mp4|mov|webm)$/i);
+                const msgDate = new Date(msg.created_at || Date.now());
+                const dateLabel = formatDateSeparator(msgDate);
+                const timeLabel = formatMessageTimestamp(msgDate);
+
+                // Date separator: inserted whenever the day changes between messages
+                if (dateLabel !== lastDateLabel) {
+                    htmlContent += `
+                        <div class="flex justify-center my-1.5">
+                            <span class="bg-slate-900 border border-slate-800 text-slate-400 text-[9px] font-bold px-2.5 py-1 rounded-full">${dateLabel}</span>
+                        </div>
+                    `;
+                    lastDateLabel = dateLabel;
+                }
+
+                // Quoted reply preview shown inside the bubble, if this message is a reply
+                const replyBlockHtml = msg.reply_to_id ? `
+                    <div class="border-l-2 ${isMe ? 'border-white/50' : 'border-pink-500'} pl-2 ${isMe ? 'bg-white/10' : 'bg-slate-950/60'} rounded-md py-1 mb-1">
+                        <p class="text-[9px] font-bold ${isMe ? 'text-white/80' : 'text-pink-400'}">${msg.reply_to_sender || ''}</p>
+                        <p class="text-[9px] ${isMe ? 'text-white/70' : 'text-slate-400'} truncate">${msg.reply_to_text || ''}</p>
+                    </div>
+                ` : '';
+
+                htmlContent += `
+                    <div class="flex flex-col ${isMe ? 'items-end' : 'items-start'} space-y-0.5 msg-swipe-item" data-msg-id="${msg.id}" data-is-me="${isMe ? '1' : '0'}" style="touch-action: pan-y;">
+                        <div class="max-w-[80%] p-2.5 rounded-2xl text-xs ${isMe ? 'bg-pink-600 text-white rounded-br-none' : 'bg-slate-900 border border-slate-800 text-slate-200 rounded-bl-none'} space-y-1.5 relative group shadow">
+                            ${replyBlockHtml}
+                            ${msg.media_url ? (
+                                isVideoMedia ? 
+                                `<video src="${msg.media_url}" controls class="w-full max-h-48 rounded-lg object-cover"></video>` :
+                                `<img src="${msg.media_url}" class="w-full max-h-48 rounded-lg object-cover">`
+                            ) : ''}
+                            <p class="leading-relaxed break-words">${msg.text}</p>
+                            <button onclick="setReplyTarget('${msg.id}')" class="absolute -top-2 ${isMe ? '-left-2' : '-right-2'} bg-slate-800 text-sky-400 p-1 rounded-full text-[9px] shadow opacity-0 group-hover:opacity-100 transition" title="Reply"><i class="fa-solid fa-reply"></i></button>
+                            ${isMe ? `<button onclick="deleteMessage('${msg.id}')" class="absolute -top-2 -right-2 bg-slate-800 text-red-400 p-1 rounded-full text-[9px] shadow opacity-0 group-hover:opacity-100 transition"><i class="fa-solid fa-xmark"></i></button>` : ''}
+                        </div>
+                        <span class="text-[9px] text-slate-500 px-1">${timeLabel}</span>
+                    </div>
+                `;
+            });
+
+            if (chatBox.innerHTML !== htmlContent) {
+                chatBox.innerHTML = htmlContent;
+                forceScroll = true;
+            }
+
+            if (forceScroll) {
+                chatBox.scrollTop = chatBox.scrollHeight;
+            }
+        }
+
+        async function deleteMessage(id) {
+            await supabaseClient.from('messages').delete().eq('id', id);
+            if (activeChatUser) loadDirectMessages(activeChatUser, false);
+        }
+
+        function renderFeed() {
+            const feedStream = document.getElementById('feedStream');
+            if (!globalPostsCache) return;
+
+            feedStream.innerHTML = '';
+            globalPostsCache.forEach(post => {
+                let badgeColor = "bg-sky-500/10 text-sky-400 border-sky-500/20";
+                let icon = "fa-twitter";
+                if (post.platform === 'Instagram') {
+                    badgeColor = "bg-pink-500/10 text-pink-400 border-pink-500/20";
+                    icon = "fa-instagram";
+                } else if (post.platform === 'Telegram') {
+                    badgeColor = "bg-blue-500/10 text-blue-400 border-blue-500/20";
+                    icon = "fa-telegram";
+                } else if (post.platform === 'Reel') {
+                    badgeColor = "bg-purple-500/10 text-purple-400 border-purple-500/20";
+                    icon = "fa-clapperboard";
+                }
+
+                const postLikes = globalLikesCache.filter(l => l.post_id === post.id);
+                const hasLiked = postLikes.some(l => l.username === currentUser);
+                const postComments = globalCommentsCache.filter(c => c.post_id === post.id);
+                const posterAvatar = globalProfilesCache[post.username];
+                const isFollowingPoster = post.username === currentUser || globalFollowsCache.some(f => f.follower === currentUser && f.following === post.username);
+                const isVideo = post.image_url && (post.platform === 'Reel' || post.image_url.match(/\.(mp4|mov|webm)$/i));
+
+                const card = document.createElement('div');
+                card.className = "glass-panel rounded-2xl p-3 space-y-2.5 shadow-md";
+                card.innerHTML = `
+                    <div class="flex justify-between items-center text-xs">
+                        <div class="flex items-center space-x-2">
+                            <div onclick="handleUserClick('${post.username}')" class="w-6 h-6 rounded-full bg-gradient-to-tr from-purple-500 to-pink-500 flex items-center justify-center font-bold text-[10px] text-white cursor-pointer shadow overflow-hidden">
+                                ${posterAvatar ? `<img src="${posterAvatar}" class="w-full h-full object-cover">` : post.username.charAt(0).toUpperCase()}
+                            </div>
+                            <span onclick="handleUserClick('${post.username}')" class="font-bold text-slate-200 cursor-pointer hover:text-pink-400 transition">${post.username}</span>
+                            ${post.username !== currentUser ? `<button onclick="toggleFollowFromFeed('${post.username}')" class="ml-1 text-[10px] px-2 py-0.5 rounded-lg border ${isFollowingPoster ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-pink-600 border-pink-500 text-white font-bold'} transition">${isFollowingPoster ? 'Following' : 'Follow'}</button>` : ''}
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <span class="text-[9px] px-2 py-0.5 rounded-full border ${badgeColor}"><i class="fa-brands ${icon} mr-1"></i>${post.platform}</span>
+                            ${post.username === currentUser ? `<button onclick="deletePost('${post.id}')" class="text-slate-500 hover:text-red-400 text-xs transition" title="Delete"><i class="fa-solid fa-trash"></i></button>` : ''}
+                        </div>
+                    </div>
+                    <p class="text-xs text-slate-300 whitespace-pre-wrap break-words">${post.content}</p>
+                    ${post.image_url ? `
+                        <div onclick="openPostDetailModal('${post.id}')" class="rounded-xl overflow-hidden border border-slate-800 bg-slate-950 flex justify-center cursor-pointer">
+                            ${isVideo ? `<video src="${post.image_url}" class="w-full max-h-80 object-cover pointer-events-none"></video>` : `<img src="${post.image_url}" class="w-full max-h-80 object-cover" />`}
+                        </div>` : ''}
+                    
+                    <div class="flex items-center space-x-4 pt-1.5 border-t border-slate-800/80 text-[11px] text-slate-400">
+                        <button onclick="toggleLike('${post.id}')" class="hover:text-pink-400 transition flex items-center gap-1">
+                            <i class="fa-solid fa-heart ${hasLiked ? 'text-pink-500' : 'text-slate-500'}"></i> <span>${postLikes.length}</span>
+                        </button>
+                        <button onclick="openCommentModal('${post.id}')" class="hover:text-sky-400 transition flex items-center gap-1">
+                            <i class="fa-solid fa-comment text-sky-400"></i> <span>${postComments.length}</span>
+                        </button>
+                    </div>
+                `;
+                feedStream.appendChild(card);
+            });
+        }
+
+        function renderReels() {
+            const container = document.getElementById('reelsStreamContainer');
+            const reels = globalPostsCache.filter(p => p.platform === 'Reel' || (p.image_url && p.image_url.match(/\.(mp4|mov|webm)$/i)));
+
+            if (reels.length === 0) {
+                container.innerHTML = `<div class="text-center text-xs text-slate-500 py-20">No reels found. Click the top-right '+' button to upload one!</div>`;
+                return;
+            }
+
+            container.innerHTML = reels.map(reel => {
+                const postLikes = globalLikesCache.filter(l => l.post_id === reel.id);
+                const hasLiked = postLikes.some(l => l.username === currentUser);
+                const postComments = globalCommentsCache.filter(c => c.post_id === reel.id);
+                const avatar = globalProfilesCache[reel.username];
+
+                return `
+                    <div class="reel-item w-full h-full flex flex-col justify-between bg-black relative">
+                        <video src="${reel.image_url}" autoplay loop muted playsinline class="absolute inset-0 w-full h-full object-cover"></video>
+                        <div class="absolute inset-0 bg-gradient-to-b from-black/50 via-transparent to-black/80 pointer-events-none"></div>
+                        
+                        <div class="relative p-4 flex justify-between items-center z-10">
+                            <div class="flex items-center space-x-2.5 cursor-pointer" onclick="handleUserClick('${reel.username}')">
+                                <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-500 to-pink-500 flex items-center justify-center text-xs text-white overflow-hidden shadow">${avatar ? `<img src="${avatar}" class="w-full h-full object-cover">` : reel.username.charAt(0)}</div>
+                                <span class="text-xs font-bold text-white">${reel.username}</span>
+                            </div>
+                        </div>
+
+                        <div class="relative p-4 z-10 flex justify-between items-end pb-12">
+                            <div class="space-y-1 pr-4 max-w-[260px]">
+                                <p class="text-xs font-bold text-white">@${reel.username}</p>
+                                <p class="text-xs text-slate-200 break-words">${reel.content}</p>
+                            </div>
+                            <div class="flex flex-col space-y-4 items-center text-white text-xs">
+                                <button onclick="toggleLike('${reel.id}')" class="flex flex-col items-center"><i class="fa-solid fa-heart text-xl ${hasLiked ? 'text-pink-500' : 'text-white'}"></i><span class="text-[10px] font-bold">${postLikes.length}</span></button>
+                                <button onclick="openCommentModal('${reel.id}')" class="flex flex-col items-center"><i class="fa-solid fa-comment text-xl text-sky-400"></i><span class="text-[10px] font-bold">${postComments.length}</span></button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function openReelUploadModal() {
+            document.getElementById('reelUploadModal').classList.remove('hidden');
+        }
+
+        function closeReelUploadModal() {
+            document.getElementById('reelUploadModal').classList.add('hidden');
+            document.getElementById('reelUploadForm').reset();
+        }
+
+        async function submitReelUpload(e) {
+            e.preventDefault();
+            const fileInput = document.getElementById('reelVideoFileInput');
+            const caption = document.getElementById('reelCaptionInput').value.trim();
+            if(!fileInput.files[0] || !caption) return;
+
+            const file = fileInput.files[0];
+            const btn = document.getElementById('reelUploadBtn');
+            const status = document.getElementById('reelUploadStatus');
+            btn.disabled = true;
+            status.classList.remove('hidden');
+
+            const uploadPromise = (async () => {
+                try {
+                    const fileName = `reel_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
+                    const { error: uploadError } = await supabaseClient.storage.from('media').upload(fileName, file);
+
+                    if(!uploadError) {
+                        const { data: publicUrlData } = supabaseClient.storage.from('media').getPublicUrl(fileName);
+                        const videoUrl = publicUrlData.publicUrl;
+
+                        await supabaseClient.from('posts').insert({
+                            username: currentUser,
+                            platform: 'Reel',
+                            content: caption,
+                            image_url: videoUrl,
+                            likes_count: 0
+                        });
+                        fetchAllData();
+                    }
+                } catch(err) {
+                    console.error("Background upload error:", err);
+                }
+            })();
+
+            closeReelUploadModal();
+            btn.disabled = false;
+            status.classList.add('hidden');
+        }
+
+        function openCommentModal(postId) {
+            activeModalPostId = postId;
+            renderCommentModal(postId);
+            document.getElementById('commentModal').classList.remove('hidden');
+        }
+
+        function closeCommentModal() {
+            activeModalPostId = null;
+            document.getElementById('commentModal').classList.add('hidden');
+        }
+
+        function renderCommentModal(postId) {
+            const listContainer = document.getElementById('commentModalList');
+            const postComments = globalCommentsCache.filter(c => c.post_id === postId);
+
+            if (postComments.length === 0) {
+                listContainer.innerHTML = `<p class="text-center text-xs text-slate-500 py-6">No comments yet. Be the first!</p>`;
+                return;
+            }
+
+            listContainer.innerHTML = postComments.map(c => {
+                const av = globalProfilesCache[c.username];
+                return `
+                    <div class="bg-slate-900 border border-slate-800 p-2.5 rounded-xl text-xs flex justify-between items-start">
+                        <div class="flex items-center space-x-2 min-w-0">
+                            <div class="w-6 h-6 rounded-full bg-gradient-to-tr from-purple-500 to-pink-500 flex items-center justify-center text-[10px] text-white overflow-hidden shrink-0">${av ? `<img src="${av}" class="w-full h-full object-cover">` : c.username.charAt(0)}</div>
+                            <div class="min-w-0"><span class="font-bold text-pink-400 cursor-pointer" onclick="handleUserClick('${c.username}')">${c.username}</span> <p class="text-slate-300 break-words">${c.text}</p></div>
+                        </div>
+                        ${c.username === currentUser ? `<button onclick="deleteComment('${c.id}')" class="text-slate-500 hover:text-red-400 text-xs ml-2"><i class="fa-solid fa-xmark"></i></button>` : ''}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function submitModalComment(e) {
+            e.preventDefault();
+            if (!activeModalPostId) return;
+            const input = document.getElementById('commentModalInput');
+            const text = input.value.trim();
+            if (!text) return;
+
+            await supabaseClient.from('comments').insert({
+                post_id: activeModalPostId,
+                username: currentUser,
+                text
+            });
+            input.value = '';
+            await fetchAllData();
+            renderCommentModal(activeModalPostId);
+        }
+
+        function openPostDetailModal(postId) {
+            const post = globalPostsCache.find(p => p.id === postId);
+            if (!post) return;
+
+            document.getElementById('detailPostUser').innerText = `${post.username}'s Post`;
+            const container = document.getElementById('detailPostContentContainer');
+            const postLikes = globalLikesCache.filter(l => l.post_id === post.id);
+            const hasLiked = postLikes.some(l => l.username === currentUser);
+            const postComments = globalCommentsCache.filter(c => c.post_id === post.id);
+            const isVideo = post.image_url && (post.platform === 'Reel' || post.image_url.match(/\.(mp4|mov|webm)$/i));
+            const posterAvatar = globalProfilesCache[post.username];
+
+            container.innerHTML = `
+                <div class="w-full h-full flex flex-col justify-center items-center relative">
+                    ${isVideo ? `<video src="${post.image_url}" controls autoplay loop muted playsinline class="w-full max-h-[70vh] object-contain"></video>` : `<img src="${post.image_url}" class="w-full max-h-[70vh] object-contain" />`}
+                    <div class="w-full p-3 bg-slate-900 border-t border-slate-800 space-y-2 mt-auto">
+                        <div class="flex items-center space-x-2">
+                            <div class="w-6 h-6 rounded-full bg-gradient-to-tr from-purple-500 to-pink-500 flex items-center justify-center text-[10px] text-white overflow-hidden">${posterAvatar ? `<img src="${posterAvatar}" class="w-full h-full object-cover">` : post.username.charAt(0)}</div>
+                            <span class="text-xs font-bold text-slate-200">${post.username}</span>
+                        </div>
+                        <p class="text-xs text-slate-300 break-words">${post.content}</p>
+                        <div class="flex items-center space-x-4 pt-1 border-t border-slate-800 text-slate-400 text-xs">
+                            <button onclick="toggleLike('${post.id}')" class="hover:text-pink-400 transition flex items-center gap-1"><i class="fa-solid fa-heart ${hasLiked ? 'text-pink-500' : 'text-slate-500'}"></i> <span>${postLikes.length}</span></button>
+                            <button onclick="openCommentModal('${post.id}')" class="hover:text-sky-400 transition flex items-center gap-1"><i class="fa-solid fa-comment text-sky-400"></i> <span>${postComments.length}</span></button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.getElementById('postDetailModal').classList.remove('hidden');
+        }
+
+        function closePostDetailModal() {
+            document.getElementById('postDetailModal').classList.add('hidden');
+        }
+
+        async function toggleLike(postId) {
+            const { data: existing } = await supabaseClient
+                .from('post_likes')
+                .select('*')
+                .eq('post_id', postId)
+                .eq('username', currentUser)
+                .single();
+
+            if (existing) {
+                await supabaseClient.from('post_likes').delete().eq('post_id', postId).eq('username', currentUser);
+            } else {
+                await supabaseClient.from('post_likes').insert({ post_id: postId, username: currentUser });
+            }
+            await fetchAllData();
+            if(activeModalPostId) renderCommentModal(activeModalPostId);
+        }
+
+        async function deleteComment(commentId) {
+            await supabaseClient.from('comments').delete().eq('id', commentId);
+            await fetchAllData();
+            if(activeModalPostId) renderCommentModal(activeModalPostId);
+        }
+
+        async function deletePost(id) {
+            if(confirm("Delete this post?")) {
+                await supabaseClient.from('posts').delete().eq('id', id);
+                await fetchAllData();
+            }
+        }
+    </script>
+</body>
+</html>
